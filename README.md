@@ -103,6 +103,11 @@ It's "agentically engineered software"; I am using llms. I don't think that matt
 but, some of you may, and lying about it is gross. I'm also writing chunks by hand,
 and accepting contributions, without any explicit AI policy.
 
+##### Is this "malleable software"
+
+All open source software is malleable, so, yes. strapd is exceptionally malleable in
+that most of the code is interpreted, so changes are largely instant.
+
 ##### Who did that ascii art?
 
 Me, Jae. I used [ascii draw studio](https://www.asciiart.eu/ascii-draw-studio/app)
