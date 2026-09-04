@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# strapd:summary=Ensure the strapd and Arch keyring packages are installed and populated
+# strapd:requires-sudo=true
+
+if strapd-pkg-missing strapd-keyring || ! sudo pacman-key --list-keys 40DFB630FF42BCFFB047046CF0134EE680CAC571 &>/dev/null; then
+  sudo pacman-key --recv-keys 40DFB630FF42BCFFB047046CF0134EE680CAC571 --keyserver keys.openpgp.org
+  sudo pacman-key --lsign-key 40DFB630FF42BCFFB047046CF0134EE680CAC571
+
+  # A partial upgrade, deliberately: strapd-update-system-pkgs upgrades the full
+  # set right after this, and it needs the latest keyring first.
+  sudo pacman -Sy
+  strapd-pkg-add strapd-keyring
+
+  sudo pacman-key --list-keys 40DFB630FF42BCFFB047046CF0134EE680CAC571
+fi
+
+# Always reinstall: maintainer keys can change without a package version bump.
+echo -e "\e[32m\nUpdate Arch signing keys\e[0m"
+sudo pacman -Sy --noconfirm archlinux-keyring >/dev/null 2> >(grep -vE '^warning: archlinux-keyring-[^ ]+ is up to date -- reinstalling$' >&2)
+echo "Keys are correct"

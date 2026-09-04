@@ -1,0 +1,9 @@
+{
+  "name": "com.strapd.copy_url",
+  "description": "strapd Copy URL clipboard host",
+  "path": "__HOST_PATH__",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://bgpiichlckmfanooecilcjemknkcpngb/"
+  ]
+}

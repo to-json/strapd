@@ -1,0 +1,10 @@
+[[action]]
+id = "window.close"
+category = "window"
+description = "Close focused window"
+key = "SUPER+W"
+
+  [action.niri]
+  dispatch = "close-window"
+  unsupported = true
+  reason = "Should not be allowed alongside dispatch"

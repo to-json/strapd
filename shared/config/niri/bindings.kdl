@@ -1,0 +1,22 @@
+// Your keybindings.
+//
+// strapd's bindings do not live here. They are one TOML table rendered into
+// every compositor strapd ships, so that changing a binding changes it for
+// all three:
+//
+//   cp /usr/share/strapd/keybindings/actions.toml ~/.config/strapd/keybindings.toml
+//   $EDITOR ~/.config/strapd/keybindings.toml
+//   strapd refresh keybindings
+//
+// That is the file to edit for anything you also want in sway or mango, and
+// for anything you want to appear in the keybinding cheatsheet.
+//
+// This file is for the niri-only ones. It loads after the generated table, so
+// a bind here also replaces one from the table.
+//
+// binds {
+//     Mod+Shift+R { spawn "alacritty" "-e" "ssh" "your-server"; }
+//
+//     // A niri-specific action with no equivalent elsewhere.
+//     Mod+Ctrl+Left { consume-or-expel-window-left; }
+// }

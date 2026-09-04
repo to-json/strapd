@@ -1,0 +1,73 @@
+#!/bin/bash
+
+# strapd:summary=Print the monitors as JSON: name, make, model, geometry, which is focused
+# strapd:args=[--focused]
+# strapd:examples=strapd wm monitors | strapd wm monitors --focused
+
+set -uo pipefail
+
+# Normalized to one array of
+#
+#   {"name","make","model","focused","dpms","x","y","width","height","scale"}
+#
+# so a caller does not learn three shapes. Two fields are null rather than
+# guessed at: make/model on mango, which matches monitor rules on them but does
+# not report them, and dpms on everything but sway.
+#
+# Geometry is already logical on all three: post-transform, so there is no
+# transform field here and nothing for a caller to do with one.
+
+focused_only=false
+case "${1:-}" in
+  --focused) focused_only=true ;;
+  "") ;;
+  *) echo "Usage: strapd-wm-monitors [--focused]" >&2; exit 2 ;;
+esac
+
+if [[ -n ${NIRI_SOCKET:-} ]]; then
+  # niri marks no output focused; which one is focused is a separate query.
+  focused=$(niri msg -j focused-output 2>/dev/null | jq -r '.name // empty')
+  monitors=$(niri msg -j outputs 2>/dev/null |
+    jq -c --arg focused "$focused" '[to_entries[] | .value | {
+      name, make, model,
+      focused: (.name == $focused),
+      dpms: null,
+      x: .logical.x, y: .logical.y,
+      width: .logical.width, height: .logical.height,
+      scale: .logical.scale
+    }]')
+elif [[ -n ${SWAYSOCK:-} ]]; then
+  monitors=$(swaymsg -t get_outputs 2>/dev/null |
+    jq -c '[.[] | {
+      name, make, model, focused, dpms,
+      x: .rect.x, y: .rect.y,
+      width: .rect.width, height: .rect.height,
+      scale
+    }]')
+elif [[ -n ${MANGO_INSTANCE_SIGNATURE:-} ]]; then
+  # mango is dwm-shaped: the selected monitor is the one the pointer is on.
+  # Each monitor carries its own remembered active_client, so on two monitors
+  # both have one and that field cannot stand in.
+  focused=$(mmsg get cursorpos 2>/dev/null | jq -r '.monitor // empty')
+  monitors=$(mmsg get all-monitors 2>/dev/null |
+    jq -c --arg focused "$focused" '[.monitors[]? | {
+      name,
+      make: null, model: null,
+      focused: (.name == $focused),
+      dpms: null,
+      x, y, width, height, scale
+    }]')
+else
+  echo "strapd-wm-monitors: no niri, sway or mango session to ask" >&2
+  exit 2
+fi
+
+[[ -n ${monitors:-} && $monitors != null ]] || exit 1
+
+if $focused_only; then
+  monitor=$(jq -c 'first(.[] | select(.focused)) // empty' <<<"$monitors")
+  [[ -n $monitor ]] || exit 1
+  printf '%s\n' "$monitor"
+else
+  printf '%s\n' "$monitors"
+fi

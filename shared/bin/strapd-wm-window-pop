@@ -1,0 +1,121 @@
+#!/bin/bash
+
+# strapd:summary=Pop the focused window out of the tiling as a fixed floating window, or put it back
+# strapd:args=[WIDTH HEIGHT [X Y]]
+# strapd:examples=strapd wm window pop | strapd wm window pop 900 600 | strapd wm window pop 900 600 40 40
+
+set -uo pipefail
+
+# A toggle, not a float switch: `window.toggle_floating` is already bound on all
+# three, and what this adds is a known size, a known place, and staying put
+# while the workspace changes underneath.
+#
+# Popped means floating, because floating is the only part of the state all
+# three report. Pinning is where they differ:
+#
+#   sway    sticky enable, floating windows follow you between workspaces.
+#   mango   toggleglobal, the same idea spelled for tags. A toggle rather than a
+#           setter, so is_global has to be read first or a second pop unpins.
+#   niri    nothing. Floating windows belong to a workspace and no action, rule
+#           or config key detaches one, so a popped window stays where it was.
+#
+# All three take an exact pixel size but do not report it back the same way:
+# niri and mango echo what was asked for, sway reports the surface the client
+# settled on, and foot rounds to whole character cells. A caller checking the
+# result has to allow for a cell, not demand the number.
+
+usage() {
+  echo "Usage: strapd-wm-window-pop [WIDTH HEIGHT [X Y]]" >&2
+  exit 2
+}
+
+width=${1:-1300}
+height=${2:-900}
+x=${3:-}
+y=${4:-}
+
+if (($# > 4)); then
+  usage
+fi
+# A place is two coordinates or neither.
+if [[ -z $x && -n $y ]] || [[ -n $x && -z $y ]]; then
+  usage
+fi
+for value in "$width" "$height" ${x:+"$x"} ${y:+"$y"}; do
+  [[ $value =~ ^[0-9]+$ ]] || usage
+done
+
+centered_position() {
+  local w=$1 h=$2 monitor
+  monitor=$(strapd-wm-monitors --focused 2>/dev/null) || return 1
+  # Clamped at the monitor origin because mango reads a signed coordinate as a
+  # relative move: a window wider than the display would compute a negative left
+  # edge and get nudged sideways from wherever it already was.
+  jq -r --argjson w "$w" --argjson h "$h" \
+    '"\(.x + ([(.width - $w) / 2 | floor, 0] | max)) \(.y + ([(.height - $h) / 2 | floor, 0] | max))"' \
+    <<<"$monitor"
+}
+
+if [[ -n ${NIRI_SOCKET:-} ]]; then
+  window=$(niri msg -j focused-window 2>/dev/null | jq -c 'select(. != null)')
+  [[ -n ${window:-} ]] || exit 1
+  id=$(jq -r '.id' <<<"$window")
+
+  if [[ $(jq -r '.is_floating' <<<"$window") == true ]]; then
+    niri msg action move-window-to-tiling --id "$id" >/dev/null 2>&1
+  else
+    niri msg action move-window-to-floating --id "$id" >/dev/null 2>&1
+    niri msg action set-window-width --id "$id" "$width" >/dev/null 2>&1
+    niri msg action set-window-height --id "$id" "$height" >/dev/null 2>&1
+    if [[ -n $x ]]; then
+      niri msg action move-floating-window --id "$id" -x "$x" -y "$y" >/dev/null 2>&1
+    else
+      niri msg action center-window --id "$id" >/dev/null 2>&1
+    fi
+  fi
+elif [[ -n ${SWAYSOCK:-} ]]; then
+  window=$(swaymsg -t get_tree 2>/dev/null |
+    jq -c 'first(recurse(.nodes[]?, .floating_nodes[]?)
+                 | select(.focused == true and .pid != null))')
+  [[ -n ${window:-} && $window != null ]] || exit 1
+  id=$(jq -r '.id' <<<"$window")
+
+  # One message, comma-joined, not four. `floating enable` restores the geometry
+  # the window last floated at, and does so after the reply comes back, so a
+  # resize sent as its own message races that restore and loses about a third of
+  # the time while reporting success. One message runs in order in one event
+  # loop iteration.
+  if [[ $(jq -r '.type' <<<"$window") == floating_con ]]; then
+    swaymsg "[con_id=$id] sticky disable, floating disable" >/dev/null 2>&1
+  else
+    if [[ -n $x ]]; then
+      place="move position $x $y"
+    else
+      place="move position center"
+    fi
+    swaymsg "[con_id=$id] floating enable, resize set $width px $height px, $place, sticky enable" \
+      >/dev/null 2>&1
+  fi
+elif [[ -n ${MANGO_INSTANCE_SIGNATURE:-} ]]; then
+  # mmsg answers {"error":...} and still exits 0 when it has nothing to say.
+  window=$(mmsg get focusing-client 2>/dev/null | jq -c 'select(has("error") | not)')
+  [[ -n ${window:-} ]] || exit 1
+  id=$(jq -r '.id' <<<"$window")
+  global=$(jq -r '.is_global' <<<"$window")
+
+  if [[ $(jq -r '.is_floating' <<<"$window") == true ]]; then
+    [[ $global == true ]] && mmsg dispatch toggleglobal "client,$id" >/dev/null 2>&1
+    mmsg dispatch togglefloating "client,$id" >/dev/null 2>&1
+  else
+    mmsg dispatch togglefloating "client,$id" >/dev/null 2>&1
+    mmsg dispatch "resizewin,$width,$height" "client,$id" >/dev/null 2>&1
+    if [[ -z $x ]]; then
+      read -r x y < <(centered_position "$width" "$height") || exit 1
+    fi
+    mmsg dispatch "movewin,$x,$y" "client,$id" >/dev/null 2>&1
+    [[ $global == true ]] || mmsg dispatch toggleglobal "client,$id" >/dev/null 2>&1
+  fi
+else
+  echo "strapd-wm-window-pop: no niri, sway or mango session to tell" >&2
+  exit 2
+fi

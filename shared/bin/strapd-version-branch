@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# strapd:summary=Print the active strapd dev-link git branch
+# strapd:hidden=true
+
+strapd_path=${STRAPD_PATH:-/usr/share/strapd}
+strapd_path=${strapd_path%/}
+
+[[ $strapd_path != "/usr/share/strapd" ]] || exit 1
+
+branch=$(git -C "$strapd_path" branch --show-current 2>/dev/null || true)
+if [[ -z $branch ]]; then
+  hash=$(git -C "$strapd_path" rev-parse --short HEAD 2>/dev/null || true)
+  [[ -n $hash ]] || exit 1
+  branch="detached@$hash"
+fi
+
+echo "$branch"

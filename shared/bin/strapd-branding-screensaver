@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# strapd:summary=Edit, set, or reset screensaver branding
+# strapd:group=branding
+# strapd:name=screensaver
+# strapd:args=<image|text|reset>
+# strapd:examples=strapd branding screensaver image | strapd branding screensaver text | strapd branding screensaver reset
+
+set -euo pipefail
+
+case "${1:-}" in
+image)
+  image=$(strapd-file-select --title "Pick PNG or SVG for screensaver" --extensions "png svg")
+  if strapd-transcode-ascii "$image" ~/.config/strapd/branding/screensaver.txt; then
+    strapd-launch-screensaver force >/dev/null 2>&1
+  fi
+  ;;
+text)
+  strapd-launch-editor ~/.config/strapd/branding/screensaver.txt >/dev/null 2>&1 && strapd-launch-screensaver force >/dev/null 2>&1
+  ;;
+reset)
+  cp "$STRAPD_PATH/logo.txt" ~/.config/strapd/branding/screensaver.txt && strapd-launch-screensaver force >/dev/null 2>&1
+  ;;
+*)
+  echo "Usage: strapd-branding-screensaver <image|text|reset>" >&2
+  exit 1
+  ;;
+esac

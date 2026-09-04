@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# strapd:summary=Install Debian packages if they are missing
+# strapd:args=<packages...>
+# strapd:examples=strapd pkg add jq ripgrep
+# strapd:requires-sudo=true
+
+# The apt twin of arch/bin/strapd-pkg-add: the distro-neutral package hook
+# that shared commands (strapd-default-editor, strapd-toggle-hybrid-gpu) call
+# to pull a dependency in on demand.
+
+if strapd-pkg-missing "$@"; then
+  apt_cmd=(apt-get install -y --no-install-recommends "$@")
+  if (( EUID == 0 )); then
+    "${apt_cmd[@]}" || exit 1
+  else
+    sudo "${apt_cmd[@]}" || exit 1
+  fi
+fi
+
+for pkg in "$@"; do
+  # Secondary check: apt can exit 0 while a package stays unconfigured, so
+  # confirm each name reached the fully-installed state before reporting success.
+  if ! dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q 'install ok installed'; then
+    echo -e "\033[31mError: Package '$pkg' did not install\033[0m" >&2
+    exit 1
+  fi
+done
+
+exit 0

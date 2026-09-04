@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# strapd:summary=Print the directory holding a theme, preferring a user-installed copy
+# strapd:args=<theme-name>
+# strapd:examples=strapd theme dir tokyo-night
+
+theme="${1:-}"
+
+if [[ -z $theme ]]; then
+  echo "Usage: strapd-theme-dir <theme-name>" >&2
+  exit 1
+fi
+
+if [[ -d $HOME/.config/strapd/themes/$theme ]]; then
+  echo "$HOME/.config/strapd/themes/$theme"
+else
+  echo "$STRAPD_PATH/themes/$theme"
+fi

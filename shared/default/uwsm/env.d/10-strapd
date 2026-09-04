@@ -1,0 +1,39 @@
+# Changes require a restart to take effect.
+#
+# uwsm sources this for every strapd session, whichever of the three
+# compositors is running, which is why the session environment lives here and
+# not in a compositor config. Niri can set environment in its own config; sway
+# and mango have no such thing. And even for niri, a block in the compositor
+# config only reaches what the compositor itself spawns, not the whole systemd
+# user session.
+
+# UWSM doesn't source /etc/profile.d, so pull the env bootstrap in directly.
+# It is also what resolves STRAPD_PATH through /etc/strapd.conf, so a
+# dev-linked checkout reaches the session here rather than being hardcoded.
+[ -r /usr/share/strapd/default/bash/env-bootstrap ] && . /usr/share/strapd/default/bash/env-bootstrap
+
+# Force every toolkit that will take the hint onto Wayland.
+export GDK_BACKEND="wayland,x11,*"
+export QT_QPA_PLATFORM="wayland;xcb"
+export QT_QPA_PLATFORMTHEME=gtk3
+export MOZ_ENABLE_WAYLAND=1
+export ELECTRON_OZONE_PLATFORM_HINT=wayland
+export OZONE_PLATFORM=wayland
+
+export XCURSOR_SIZE=24
+
+
+# strapd session defaults. Users can override these in ~/.config/uwsm/default
+# or, preferably, ~/.config/uwsm/env.d/*.
+if [ -f "${STRAPD_PATH%/}/default/uwsm/default" ]; then
+  . "${STRAPD_PATH%/}/default/uwsm/default"
+else
+  export TERMINAL=xdg-terminal-exec
+  export EDITOR="strapd-launch-editor --inline"
+fi
+
+# Optional user overrides kept for compatibility with older installs.
+[ -f "$HOME/.config/uwsm/default" ] && . "$HOME/.config/uwsm/default"
+
+# Activate mise if present on the system
+strapd-cmd-present mise && eval "$(mise activate bash --shims)"

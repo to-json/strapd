@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# strapd:summary=Show the current time and date notification
+
+strapd-notification-send -g  -u low "$(date +"%A %H:%M  ·  %d %B %Y  ·  Week %V")"

@@ -1,0 +1,81 @@
+#!/bin/bash
+# strapd:summary=Start a compositor session with this machine's generated config refreshed
+# strapd:args=<niri|sway|mango>
+# strapd:hidden=true
+
+# Deliberately without -e. Below the refreshes is the user's whole session; a
+# failure there should cost a stale keybinding, never a login.
+set -uo pipefail
+
+usage() {
+  echo "usage: strapd-session <niri|sway|mango>" >&2
+}
+
+compositor="${1:-}"
+
+# Out of the DesktopNames each compositor's own session file declares. Portals
+# key off XDG_CURRENT_DESKTOP, and sway and mango want to be seen as wlroots.
+case "$compositor" in
+  niri)
+    desktop_names="niri"
+    fancy_name="Niri"
+    ;;
+  sway)
+    desktop_names="sway:wlroots"
+    fancy_name="Sway"
+    ;;
+  mango)
+    desktop_names="mango:wlroots"
+    fancy_name="MangoWC"
+    ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+esac
+
+# greetd discards what a session command prints and systemd never gets as far
+# as a unit to log against, so a compositor that fails to start leaves no error
+# anywhere on the machine. One previous session is kept alongside, because by
+# the time anybody looks they have logged in again.
+session_log="$HOME/.local/state/strapd/session.log"
+mkdir -p "$(dirname "$session_log")"
+[[ -f $session_log ]] && mv -f "$session_log" "$session_log.1"
+
+# tee rather than a plain redirect, so a run by hand still prints.
+exec > >(tee "$session_log") 2>&1
+
+echo "strapd-session: starting $fancy_name at $(date -Is)"
+
+# After the redirect, deliberately: greetd discards what a session prints, so
+# the log is the only place this can be read. MangoWC is not in Arch's repos,
+# so a machine can have its session file and not its binary, and a greeter that
+# ignores TryExec will offer it anyway.
+if ! strapd-cmd-present "$compositor"; then
+  echo "strapd-session: $fancy_name is not installed."
+  [[ $compositor == mango ]] &&
+    echo "strapd-session: it is in the AUR rather than the repos: yay -S mangowc"
+  exit 1
+fi
+
+# Once per login, so there is no first-run step to forget and no window in
+# which an update leaves the old keybinding table bound. A failure is reported
+# and stepped over: both commands leave the last good files in place, and a
+# session bound to the pre-edit table beats a login that does not complete.
+for refresh in strapd-refresh-keyboard-layout strapd-refresh-keybindings; do
+  "$refresh" ||
+    echo "strapd-session: $refresh failed; starting with the last generated config" >&2
+done
+
+# uwsm starts the compositor as a systemd user session: the environment reaches
+# systemd and dbus, apps launched with `uwsm app` get their own scopes, and the
+# session stops cleanly. -g -1 drops the graphical.target wait warning; -e makes
+# these names the only ones XDG_CURRENT_DESKTOP gets.
+#
+# The compositor binary, not its .desktop file: niri.desktop runs niri-session,
+# and two session managers for one session is one too many.
+exec uwsm start -g -1 -e -D "$desktop_names" -N "$fancy_name" "$compositor"

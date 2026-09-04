@@ -1,0 +1,69 @@
+#!/bin/bash
+
+# strapd:summary=Print the windows on screen as JSON: app-id, title, geometry
+# strapd:args=[--all]
+# strapd:examples=strapd wm windows | strapd wm windows --all
+
+set -uo pipefail
+
+# Normalized to {"id","pid","app_id","title","x","y","width","height","focused"}.
+# The id is the compositor's own; strapd-wm-focus-window hands it back.
+#
+# x and y are null on niri, which places a window only as [column, row] in the
+# scrolling layout (niri 26.04). There is no absolute rectangle to be had short
+# of reimplementing niri's layout out here, so a caller that needs rectangles
+# must check for null rather than assume.
+#
+# Visible means visible, across every monitor rather than just the focused one:
+# a screenshot selection spans them all. --all drops the filter, which is what
+# closing everything before a reboot needs.
+
+all=0
+case "${1:-}" in
+  "") ;;
+  --all) all=1 ;;
+  *)
+    echo "Usage: strapd-wm-windows [--all]" >&2
+    exit 2
+    ;;
+esac
+
+if [[ -n ${NIRI_SOCKET:-} ]]; then
+  if (( all )); then
+    active="null"
+  else
+    active=$(niri msg -j workspaces 2>/dev/null | jq -c '[.[] | select(.is_active) | .id]')
+  fi
+  windows=$(niri msg -j windows 2>/dev/null |
+    jq -c --argjson active "${active:-[]}" '[.[]
+      | select($active == null or (.workspace_id as $w | $active | index($w)))
+      | {id, pid, app_id, title,
+         x: null, y: null,
+         width: (.layout.window_size[0] // null),
+         height: (.layout.window_size[1] // null),
+         focused: .is_focused}]')
+elif [[ -n ${SWAYSOCK:-} ]]; then
+  windows=$(swaymsg -t get_tree 2>/dev/null |
+    jq -c --argjson all "$all" '[recurse(.nodes[]?, .floating_nodes[]?)
+            | select(.pid != null and ($all == 1 or .visible))
+            | {id, pid,
+               app_id: (.app_id // .window_properties.class),
+               title: .name,
+               x: .rect.x, y: .rect.y,
+               width: .rect.width, height: .rect.height,
+               focused}]')
+elif [[ -n ${MANGO_INSTANCE_SIGNATURE:-} ]]; then
+  windows=$(mmsg get all-clients 2>/dev/null |
+    jq -c --argjson all "$all" '[.clients[]?
+            | select($all == 1 or .is_visible)
+            | {id, pid, app_id: .appid, title,
+               x, y, width, height,
+               focused: .is_focused}]')
+else
+  echo "strapd-wm-windows: no niri, sway or mango session to ask" >&2
+  exit 2
+fi
+
+[[ -n ${windows:-} && $windows != null ]] || exit 1
+
+printf '%s\n' "$windows"

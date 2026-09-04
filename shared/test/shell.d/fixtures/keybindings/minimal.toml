@@ -1,0 +1,63 @@
+[[action]]
+id = "window.close"
+category = "window"
+description = "Close focused window"
+key = "SUPER+W"
+
+  [action.niri]
+  dispatch = "close-window"
+
+  [action.sway]
+  dispatch = "kill"
+
+  [action.mango]
+  dispatch = "killclient"
+
+[[action]]
+id = "layout.toggle_split"
+category = "layout"
+description = "Toggle window split direction"
+key = "SUPER+J"
+
+  [action.niri]
+  unsupported = true
+  reason = "Scrolling-tiling model has no manual split-direction concept"
+
+  [action.sway]
+  dispatch = "layout toggle split"
+
+  [action.mango]
+  unsupported = true
+  reason = "Mango switches whole named layouts, with no split direction to toggle"
+
+[[action]]
+id = "layout.toggle_overview"
+category = "layout"
+description = "Toggle the workspace overview"
+key = "SUPER+O"
+
+  [action.niri]
+  dispatch = "toggle-overview"
+
+  [action.sway]
+  unsupported = true
+  reason = "Sway has no built-in workspace overview"
+
+  [action.mango]
+  dispatch = "toggleoverview"
+
+[[action]]
+id = "workspace.focus.{n}"
+category = "workspace"
+description = "Switch to workspace {n}"
+key = "SUPER+{n}"
+repeat = { var = "n", range = [1, 3] }
+
+  [action.niri]
+  dispatch = "focus-workspace {n}"
+
+  [action.sway]
+  dispatch = "workspace number {n}"
+
+  [action.mango]
+  dispatch = "view,{n},0"

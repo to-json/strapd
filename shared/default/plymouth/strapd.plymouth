@@ -1,0 +1,11 @@
+[Plymouth Theme]
+Name=strapd
+Description=strapd splash screen.
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/strapd
+ScriptFile=/usr/share/plymouth/themes/strapd/strapd.script
+ConsoleLogBackgroundColor=0x2d353b
+MonospaceFont=Cantarell 11
+Font=Cantarell 11

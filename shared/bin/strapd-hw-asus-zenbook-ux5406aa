@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# strapd:summary=Detect ASUS Zenbook UX5406AA series laptops on Intel Panther Lake.
+
+strapd-hw-match "ux5406aa" && strapd-hw-intel-ptl

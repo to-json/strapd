@@ -1,0 +1,26 @@
+// Your window rules. strapd's are in
+// /usr/share/strapd/default/niri/windows.kdl.
+//
+// Niri applies every rule that matches and the last one wins, so a rule here
+// overrides one there without having to repeat the rest of it.
+//
+// Float a chat app, always:
+//
+// window-rule {
+//     match app-id=r#"^Slack$"#
+//     open-floating true
+// }
+//
+// Undo strapd's translucency and make every window opaque:
+//
+// window-rule {
+//     opacity 1.0
+// }
+//
+// Keep a password manager out of screen recordings and shares, a rule niri
+// has and the other two compositors do not:
+//
+// window-rule {
+//     match app-id=r#"^Bitwarden$"#
+//     block-out-from "screen-capture"
+// }

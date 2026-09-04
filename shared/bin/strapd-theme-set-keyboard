@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# strapd:summary=Apply the current theme keyboard color to supported keyboards
+# strapd:hidden=true
+
+strapd-theme-set-keyboard-asus-rog
+strapd-theme-set-keyboard-f16

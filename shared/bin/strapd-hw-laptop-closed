@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# strapd:summary=Returns true when the laptop lid is closed
+# strapd:hidden=true
+
+for state in /proc/acpi/button/lid/*/state; do
+  [[ -r $state ]] || continue
+  [[ $(< "$state") == *"closed"* ]] && exit 0
+done
+
+exit 1

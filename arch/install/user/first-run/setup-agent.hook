@@ -1,0 +1,11 @@
+#!/bin/bash
+
+set -e
+
+# strapd ships no default agent, so invite once rather than picking one. An
+# agent already chosen means the invitation has nothing to offer.
+if [[ -z $(strapd-default-agent) ]] && strapd-done ensure agent-setup-invitation; then
+  strapd-notification-send -u critical -g 󰚩 "Set your default agent" \
+    "Let your favorite agent help with strapd." \
+    --exec strapd menu summon setup.default.agent
+fi

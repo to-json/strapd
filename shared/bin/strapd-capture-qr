@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# strapd:summary=Decode a QR code from a screenshot region
+# strapd:group=capture
+# strapd:examples=strapd capture qr
+
+# See strapd-capture-text: the freeze and the picker are strapd-capture-region's,
+# and the freeze has to outlive grim.
+cleanup() {
+  [[ -n ${FREEZE_PID:-} ]] && kill $FREEZE_PID 2>/dev/null
+}
+trap cleanup EXIT
+
+{ read -r FREEZE_PID; read -r SELECTION; } < <(strapd-capture-region region --keep-freeze)
+
+[[ -z ${SELECTION:-} ]] && exit 0
+
+# Decode QR codes only. Leaving the other symbologies enabled lets dense screen
+# content false-positive as an EAN or Code 39 barcode and take over the clipboard.
+RESULT=$(grim -g "$SELECTION" - | zbarimg -q --raw -Sdisable -Sqrcode.enable - 2>/dev/null)
+
+if [[ -z $RESULT ]]; then
+  strapd-notification-send -g 󰐲 -u critical "No QR code found" "Select a region containing a QR code"
+  exit 1
+fi
+
+# QR codes routinely carry secrets, like the otpauth:// URIs behind 2FA setup
+# codes, so the decoded value goes to the clipboard and nowhere else: printing
+# it would leak it to the session journal and the notification history, and an
+# unmarked copy would be kept by clipboard history.
+printf '%s' "$RESULT" | wl-copy --sensitive
+strapd-notification-send -g 󰐲 "QR code copied to clipboard"

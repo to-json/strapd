@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# strapd:summary=Install a packaged app, surfacing the install in a floating terminal
+# strapd:args=<display-name> <packages>
+# strapd:examples=strapd install app 'LM Studio' lmstudio-bin
+
+name="${1-}"
+packages="${2-}"
+
+if [[ -z $name || -z $packages ]]; then
+  echo "Usage: strapd-install-app <display-name> <packages>" >&2
+  exit 1
+fi
+
+exec strapd-launch-floating-terminal-with-presentation "echo 'Installing ${name}...'; strapd-pkg-add ${packages}"

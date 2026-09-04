@@ -1,0 +1,23 @@
+#!/bin/sh
+#
+# Let a machine with no GPU actually reach its desktop.
+#
+# All three compositors are wlroots, and wlroots refuses to start on a software
+# renderer unless told to allow one. Without that the session exits the instant
+# it starts, the greeter comes straight back, and nothing is written to any
+# journal.
+#
+# A systemd user-environment generator, and that placement is the whole point.
+# Two other places do not work: exported from strapd-session, which cannot reach
+# the compositor because `uwsm start` launches it as a systemd unit; and uwsm's
+# env.d, which is not sourced at this stage at all.
+#
+# The test is for a render node rather than a hypervisor name: /dev/dri/renderD*
+# is what a hardware renderer *is*. Nothing is emitted on real hardware, so a
+# broken GPU driver still fails loudly instead of being demoted to llvmpipe.
+
+for node in /dev/dri/renderD*; do
+  [ -e "$node" ] && exit 0
+done
+
+echo "WLR_RENDERER_ALLOW_SOFTWARE=1"

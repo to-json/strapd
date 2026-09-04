@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# strapd:summary=Refresh the ~/.config/chromium-flags.conf file from the strapd defaults.
+
+CONFIG_FILE="$HOME/.config/chromium-flags.conf"
+INSTALL_GOOGLE_ACCOUNTS=false
+
+if [[ -f $CONFIG_FILE ]] && \
+  grep -q -- "--oauth2-client-id" "$CONFIG_FILE" && \
+  grep -q -- "--oauth2-client-secret" "$CONFIG_FILE"; then
+  INSTALL_GOOGLE_ACCOUNTS=true
+fi
+
+strapd-refresh-config chromium-flags.conf
+
+# The native messaging hosts the bundled extensions use.
+strapd-install-chromium-copy-url
+strapd-install-chromium-ytdlp
+
+if [[ $INSTALL_GOOGLE_ACCOUNTS == "true" ]]; then
+  strapd-install-chromium-google-account
+fi

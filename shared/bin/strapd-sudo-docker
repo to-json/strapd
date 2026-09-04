@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# strapd:summary=Succeed when Docker needs sudo, fail when it can be used directly
+# strapd:args=[--configured]
+# strapd:examples=strapd-sudo-docker && echo "needs sudo" | strapd-sudo-docker --configured
+# strapd:hidden=true
+
+# The docker group is root-equivalent, so strapd leaves users out of it by
+# default and reaches the daemon through a prompt instead. Everything that has
+# to make that choice asks here rather than testing group membership itself.
+#
+# Two questions, because they differ between toggling sudoless Docker and the
+# reboot that applies it:
+#
+#   (default)      Does Docker need sudo *right now*? Answered by whether this
+#                  process can reach the socket. Still true in the window after
+#                  sudoless Docker is enabled but before the reboot.
+#   --configured   Will it need sudo once the account's groups take effect?
+#
+# Succeeds (exit 0) when sudo is needed, so it reads as `if strapd-sudo-docker`.
+
+DOCKER_SOCKET="${STRAPD_DOCKER_SOCKET:-/var/run/docker.sock}"
+
+case "${1:-}" in
+--configured)
+  # An account in the docker group will not need sudo after the next login.
+  id -nG "$USER" 2>/dev/null | grep -qw docker && exit 1
+  exit 0
+  ;;
+"")
+  # A socket we can write is a daemon we can drive without elevating. A missing
+  # socket counts as needing sudo: reaching it means starting it as root anyway.
+  [[ -w $DOCKER_SOCKET ]] && exit 1
+  exit 0
+  ;;
+*)
+  echo "Usage: strapd-sudo-docker [--configured]" >&2
+  exit 2
+  ;;
+esac

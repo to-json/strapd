@@ -1,0 +1,42 @@
+# The login screen.
+#
+# greetd is the session daemon and tuigreet is what it runs: a terminal
+# greeter, on the console, listing the sessions in
+# /usr/share/wayland-sessions. That is the three strapd session files, so the
+# compositor is chosen at the login screen, which is the point of shipping
+# three of them.
+#
+# The plan names noctalia-greeter for this, and that is still the destination.
+# It is not in Arch's repos, only the AUR, and install.sh deliberately does not
+# reach there: making an AUR helper a prerequisite for logging in is a worse
+# trade than a greeter that is one package and works everywhere. Swapping it
+# later is this file's `command` line.
+
+[terminal]
+# The VT the greeter runs on. Not "next": a fixed VT means the login screen is
+# always in the same place after a session ends, rather than walking up the
+# console list with each logout.
+vt = 1
+
+[default_session]
+# --remember-user-session, not just --remember-session: the machine remembers
+# which compositor each user last chose, so two people who prefer different
+# ones both get theirs.
+#
+# --sessions names strapd's own directory, not the shared one, and that is
+# load-bearing rather than tidy. niri, sway and mango each install a session
+# file of their own into /usr/share/wayland-sessions, so a greeter pointed
+# there offers six entries; the three that are not strapd's start a bare
+# compositor with no uwsm, no generated keybindings and none of the session
+# environment. That is not a session that fails, it is one that comes up
+# looking like a broken strapd, which is exactly what happened here, for
+# several rounds, before the greeter was found to have remembered
+# mango.desktop instead of strapd-mango.desktop.
+#
+# It also drops the X11 paths the default would search, which strapd has no
+# session in.
+command = "tuigreet --time --remember --remember-user-session --sessions /usr/share/strapd/wayland-sessions"
+
+# greetd's own unprivileged user, created by its package. The greeter runs as
+# this and never as root.
+user = "greeter"

@@ -1,0 +1,139 @@
+#!/bin/bash
+
+# strapd:summary=Open the strapd menu
+# strapd:group=menu
+# strapd:args=[toggle|summon] [route]
+# strapd:examples=strapd menu | strapd menu toggle system | strapd menu summon style
+
+# The menu tree is data, in default/menu/tree.tsv. `toggle` and `summon` both
+# mean open: fuzzel exists only while it is on screen, so there is no surface to
+# toggle against, and both verbs are kept because actions.toml spells one.
+
+set -uo pipefail
+
+STRAPD_PATH="${STRAPD_PATH:-/usr/share/strapd}"
+TREE="${STRAPD_MENU_TREE:-$STRAPD_PATH/default/menu/tree.tsv}"
+
+usage() {
+  cat >&2 <<'USAGE'
+Usage: strapd menu [verb] [route]
+
+Verbs:
+  toggle [route]   Open the menu at <route>. Default verb.
+  summon [route]   The same thing; kept because the keybinding table says it.
+
+Route is a dotted id from default/menu/tree.tsv (e.g. system, style.theme).
+Defaults to "root", the top-level menu.
+USAGE
+}
+
+verb="${1-toggle}"
+route="${2-root}"
+
+case "$verb" in
+  toggle | summon) ;;
+  -h | --help | help) usage; exit 0 ;;
+  *)
+    echo "strapd-menu: unknown verb '$verb'. Try 'strapd menu --help'." >&2
+    exit 2
+    ;;
+esac
+
+[[ -f $TREE ]] || {
+  echo "strapd-menu: no menu tree at $TREE" >&2
+  exit 2
+}
+
+# The rows directly under <route>: ids with exactly one more segment than the
+# route. "apps.terminal" is under "apps"; "apps.dev.editor" is under "apps.dev".
+rows_under() {
+  local parent="$1"
+
+  awk -F'\t' -v parent="$parent" '
+    /^#/ || NF == 0 { next }
+    {
+      id = $1
+      if (parent == "root") {
+        if (index(id, ".") > 0) next
+      } else {
+        prefix = parent "."
+        if (substr(id, 1, length(prefix)) != prefix) next
+        if (index(substr(id, length(prefix) + 1), ".") > 0) next
+      }
+      printf "%s\t%s\t%s\n", id, $2, $3
+    }
+  ' "$TREE"
+}
+
+route_exists() {
+  awk -F'\t' -v route="$1" '
+    !/^#/ && NF && $1 == route { found = 1 }
+    END { exit found ? 0 : 1 }
+  ' "$TREE"
+}
+
+if [[ $route != root ]] && ! route_exists "$route"; then
+  echo "strapd-menu: no such route '$route'" >&2
+  exit 2
+fi
+
+# Labels are unique within one submenu -- menu-test.sh fails the tree if they
+# are not -- so the label is key enough here. The alternative, sending the id
+# through as a subtext, would print it on screen beside every row.
+BACK="← Back"
+
+show() {
+  local parent="$1"
+  local -a ids=() labels=() actions=()
+  local id label action choice
+
+  while IFS=$'\t' read -r id label action; do
+    ids+=("$id")
+    labels+=("$label")
+    actions+=("$action")
+  done < <(rows_under "$parent")
+
+  (( ${#ids[@]} )) || {
+    echo "strapd-menu: nothing under '$parent'" >&2
+    return 1
+  }
+
+  local -a offered=("${labels[@]}")
+  [[ $parent != root ]] && offered+=("$BACK")
+
+  choice=$(printf '%s\n' "${offered[@]}" |
+    strapd-menu-select "${parent^}" -- --width 500 --height 400) || return 1
+
+  if [[ $choice == "$BACK" ]]; then
+    # The root menu is never offered a back row, so this is only reachable by a
+    # caller that answered with one anyway; "go up from the top" has to end
+    # rather than reopen the same menu.
+    [[ $parent == root ]] && return 1
+
+    # The parent of "style.theme" is "style"; the parent of "style" is root.
+    if [[ $parent == *.* ]]; then
+      show "${parent%.*}"
+    else
+      show root
+    fi
+    return
+  fi
+
+  local index
+  for index in "${!labels[@]}"; do
+    [[ ${labels[$index]} == "$choice" ]] || continue
+
+    if [[ -n ${actions[$index]} ]]; then
+      # `bash -c` so a row may be a pipeline. The launchers detach themselves
+      # and rows that open another menu have to stay in the foreground.
+      exec bash -c "${actions[$index]}"
+    fi
+
+    show "${ids[$index]}"
+    return
+  done
+
+  return 1
+}
+
+show "$route"

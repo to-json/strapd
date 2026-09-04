@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# strapd:summary=Returns true when clamshell mode is active
+# strapd:hidden=true
+
+# Clamshell = lid closed while driving one or more external monitors.
+strapd-hw-laptop-closed && strapd-hw-external-monitors

@@ -1,0 +1,37 @@
+# Packages strapd installs from the AUR, kept apart from strapd-base.packages
+# because they are built on the target rather than pulled from a repo. yay is in
+# here and is also what installs the rest, so it has to be bootstrapped from its
+# PKGBUILD first; nothing else in this file can be resolved before it exists.
+#
+# Hardware-conditional AUR packages are listed here too so the ISO builder sees
+# them, even though install/hardware/* only reaches for them on matching machines.
+#
+# Nothing here can be installed by strapd-pkg-add: it runs `pacman -S`, and
+# install/* calls it as root inside the target, where yay refuses to run at all.
+# So this file is a list of what needs building, not something install/* can act
+# on. Where that build happens, a repo, a chroot step in the ISO build, or a
+# first-boot pass as the user, is still undecided.
+
+aether
+asusctl
+cliamp
+herdr
+lib32-nvidia-580xx-utils
+limine-mkinitcpio-hook
+limine-snapper-sync
+localsend
+macbook12-spi-driver-dkms
+mangowc
+mise-bin
+nvidia-580xx-dkms
+nvidia-580xx-utils
+qmk-hid
+tensaku
+ttf-ia-writer
+tuxedo-drivers-nocompatcheck-dkms
+tzupdate
+ufw-docker
+xdg-terminal-exec
+yaru-icon-theme
+yay
+yt6801-dkms

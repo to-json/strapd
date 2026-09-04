@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# strapd:summary=Extract text from a screenshot region with OCR
+# strapd:group=capture
+# strapd:examples=strapd capture text
+
+# strapd-capture-region owns the freeze and the picker, including the one thing
+# worth getting right about the pair: keeping the freeze up until after grim has
+# read the frame, so what gets captured is the frozen overlay rather than live
+# content sliding out from under the selection.
+cleanup() {
+  [[ -n ${FREEZE_PID:-} ]] && kill $FREEZE_PID 2>/dev/null
+}
+trap cleanup EXIT
+
+{ read -r FREEZE_PID; read -r SELECTION; } < <(strapd-capture-region region --keep-freeze)
+
+[[ -z ${SELECTION:-} ]] && exit 0
+
+TEXT=$(grim -g "$SELECTION" - |
+  tesseract stdin stdout --oem 1 --psm 6 -l "${STRAPD_OCR_LANGS:-eng}" --dpi 300 \
+    -c preserve_interword_spaces=1 2>/dev/null) || exit 1
+
+[[ -z $TEXT ]] && exit 1
+
+printf "%s" "$TEXT" | wl-copy
+strapd-notification-send -g 󰴑 "Copied text from selection to clipboard"

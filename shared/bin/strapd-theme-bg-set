@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# strapd:summary=Set the current background image
+# strapd:args=<path-to-image>
+# strapd:examples=strapd theme bg set ~/Pictures/background.png
+
+# Two steps: point the symlink at the image, then draw it. The drawing is
+# strapd-theme-bg-apply's job, one swaybg behind the windows, on whichever of
+# the three compositors is running.
+
+if [[ -z $1 ]]; then
+  echo "Usage: strapd-theme-bg-set <path-to-image>" >&2
+  exit 1
+fi
+
+BACKGROUND="$(realpath "$1")"
+CURRENT_BACKGROUND_LINK="$HOME/.local/state/strapd/current/background"
+
+if [[ ! -f $BACKGROUND ]]; then
+  echo "File does not exist: $BACKGROUND" >&2
+  exit 1
+fi
+
+ln -nsf "$BACKGROUND" "$CURRENT_BACKGROUND_LINK"
+
+# Redraw, so the choice is visible rather than merely recorded.
+strapd-theme-bg-apply

@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# strapd:summary=Print the active strapd package channel
+
+set -euo pipefail
+
+# Dev is a linked source checkout: STRAPD_PATH points somewhere other than
+# the package-backed install at /usr/share/strapd. This takes precedence over
+# the package channels, since the checkout overrides whatever is installed.
+if [[ $STRAPD_PATH != "/usr/share/strapd" ]]; then
+  echo dev
+  exit 0
+fi
+
+# strapd-dev / strapd-settings-dev ship only from the edge repo, so their
+# presence alone means edge. strapd / strapd-settings come from either the
+# stable or rc mirror, distinguished by strapd-version-channel.
+if pacman -Q strapd-dev strapd-settings-dev >/dev/null 2>&1; then
+  echo edge
+elif pacman -Q strapd strapd-settings >/dev/null 2>&1; then
+  channel=$(strapd-version-channel 2>/dev/null | awk '{ print $1 }')
+  case "$channel" in
+    stable) echo stable ;;
+    rc) echo rc ;;
+    *) echo unknown ;;
+  esac
+else
+  echo unknown
+fi

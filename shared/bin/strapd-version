@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# strapd:summary=Print the installed strapd version
+
+strapd_path=${STRAPD_PATH:-/usr/share/strapd}
+strapd_path=${strapd_path%/}
+
+if [[ $strapd_path != "/usr/share/strapd" ]]; then
+  hash=$(git -C "$strapd_path" rev-parse --short HEAD 2>/dev/null || true)
+
+  if [[ -n $hash ]]; then
+    echo "dev ($hash)"
+  else
+    echo "dev"
+  fi
+
+  exit 0
+fi
+
+# The edge channel installs strapd-dev instead of strapd, so check both.
+for package in strapd-dev strapd; do
+  version=$(pacman -Q "$package" 2>/dev/null | awk '{ print $2 }')
+  [[ -n $version ]] && break
+done
+
+[[ -n $version ]] || exit 1
+
+echo "$version"

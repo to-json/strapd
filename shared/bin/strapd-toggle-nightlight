@@ -1,0 +1,121 @@
+#!/bin/bash
+
+# strapd:summary=Toggle the warm night-light screen temperature
+# strapd:group=toggle
+# strapd:args=[toggle|on|off|status]
+# strapd:examples=strapd toggle nightlight | strapd toggle nightlight status
+
+set -uo pipefail
+
+# Warming a screen means a gamma ramp through zwlr_gamma_control_manager_v1,
+# which all three compositors implement and gammastep speaks with no IPC.
+#
+# Gamma resets the moment the client disconnects, so "on" is a process that
+# stays running and "off" is killing it; there is no neutral 6500K to set.
+#
+# An output only has a gamma ramp if the hardware behind it does, so on a
+# headless output or QEMU's GPU gammastep warns and keeps running: `status`
+# answers "a gammastep is running at 4000K", not "the screen is warm".
+#
+# niri offers the protocol on its TTY backend only; nested, gammastep exits at
+# once, which is why turn_on waits to see it stay up rather than trusting it.
+
+TEMPERATURE=4000
+
+# -O sets a temperature and keeps running; -o would set it and exit, dropping
+# the connection and the gamma ramp with it.
+#
+# `pgrep -a` prints pid and command line, and that pair is the entire state this
+# command has -- nothing is written to a state file, because a file is free to
+# disagree with the process after a crash. The cost is that a gammastep the user
+# started themselves looks the same to this check, and `off` would stop it.
+running_line() {
+  pgrep -u "$(id -u)" -a -x gammastep 2>/dev/null | head -n1
+}
+
+running_temperature() {
+  local prev="" token
+
+  # Deliberate word splitting: the argv is what is being read.
+  # shellcheck disable=SC2086
+  for token in $1; do
+    if [[ $prev == "-O" ]]; then
+      printf '%s\n' "$token"
+      return 0
+    fi
+    prev="$token"
+  done
+
+  return 1
+}
+
+status_json() {
+  local line temp
+
+  line=$(running_line)
+  if [[ -z $line ]]; then
+    printf '{"enabled":false,"temperature":null}\n'
+    return
+  fi
+
+  temp=$(running_temperature "$line") || temp=""
+  if [[ -z $temp ]]; then
+    printf '{"enabled":true,"temperature":null}\n'
+  else
+    printf '{"enabled":true,"temperature":%s}\n' "$temp"
+  fi
+}
+
+turn_on() {
+  [[ -n $(running_line) ]] && return 0
+
+  strapd-cmd-present gammastep || {
+    echo "strapd-toggle-nightlight: gammastep is not installed" >&2
+    exit 2
+  }
+
+  setsid uwsm-app -- gammastep -P -O "$TEMPERATURE" >/dev/null 2>&1 &
+
+  # gammastep exits at once on a compositor offering no gamma control, so "did
+  # it start" and "is it still there a moment later" are different questions.
+  local attempt
+  for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    [[ -n $(running_line) ]] && return 0
+    sleep 0.15
+  done
+
+  echo "strapd-toggle-nightlight: gammastep did not stay running; this session may offer no gamma control" >&2
+  return 1
+}
+
+turn_off() {
+  [[ -n $(running_line) ]] || return 0
+
+  # Gamma goes back to neutral when the connection drops; nothing to restore.
+  pkill -u "$(id -u)" -x gammastep
+}
+
+case "${1:-toggle}" in
+  toggle)
+    if [[ -n $(running_line) ]]; then
+      turn_off
+      echo off
+    else
+      turn_on && echo on
+    fi
+    ;;
+  on)
+    turn_on && echo on
+    ;;
+  off)
+    turn_off
+    echo off
+    ;;
+  status|--status)
+    status_json
+    ;;
+  *)
+    echo "Usage: strapd-toggle-nightlight [toggle|on|off|status]" >&2
+    exit 1
+    ;;
+esac

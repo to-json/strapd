@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# strapd:summary=Focus the first window whose app-id or title matches a pattern
+# strapd:args=<pattern>
+# strapd:examples=strapd wm focus-window Slack
+
+set -uo pipefail
+
+# The pattern is a regex matched case-insensitively against app-id and title,
+# anchored to word boundaries on both sides, so `strapd-launch-or-focus-webapp
+# ChatGPT` keeps matching the window Chromium titles "ChatGPT - Google Chrome".
+# A caller wanting a whole-string match writes ^...$ inside the pattern.
+#
+# Exit 1 means nothing matched. Exit 2 means there was no session to ask.
+
+if (($# != 1)); then
+  echo "Usage: strapd-wm-focus-window <pattern>" >&2
+  exit 2
+fi
+
+PATTERN=$1
+
+if [[ -n ${NIRI_SOCKET:-} ]]; then
+  windows=$(niri msg -j windows 2>/dev/null | jq -c '[.[] | {id, app_id, title}]')
+  focus_window() { niri msg action focus-window --id "$1" >/dev/null 2>&1; }
+elif [[ -n ${SWAYSOCK:-} ]]; then
+  # The tree holds outputs, workspaces and split containers too; a window is a
+  # node with a pid.
+  windows=$(swaymsg -t get_tree 2>/dev/null |
+    jq -c '[recurse(.nodes[]?, .floating_nodes[]?)
+            | select(.pid != null)
+            | {id, app_id: (.app_id // .window_properties.class), title: .name}]')
+  focus_window() { swaymsg "[con_id=$1] focus" >/dev/null 2>&1; }
+elif [[ -n ${MANGO_INSTANCE_SIGNATURE:-} ]]; then
+  windows=$(mmsg get all-clients 2>/dev/null |
+    jq -c '[.clients[]? | {id, app_id: .appid, title}]')
+  # focusid without a `client,<id>` token is a no-op that still reports success.
+  focus_window() { mmsg dispatch focusid "client,$1" >/dev/null 2>&1; }
+else
+  echo "strapd-wm-focus-window: no niri, sway or mango session to ask" >&2
+  exit 2
+fi
+
+[[ -n ${windows:-} && $windows != null ]] || exit 1
+
+id=$(jq -r --arg p "$PATTERN" '
+  first(.[]
+        | select((((.app_id // "") | test("\\b" + $p + "\\b"; "i")))
+                 or (((.title // "") | test("\\b" + $p + "\\b"; "i"))))
+        | .id) // empty' <<<"$windows") || exit 1
+
+[[ -n $id ]] || exit 1
+
+focus_window "$id"

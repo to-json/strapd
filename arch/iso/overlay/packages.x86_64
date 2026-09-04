@@ -1,0 +1,4 @@
+# Appended to archiso's releng list. releng already carries everything else the
+# installer needs: arch-install-scripts, gptfdisk, dosfstools, btrfs-progs,
+# efibootmgr, iwd, linux-firmware. So this is only what it does not.
+curl

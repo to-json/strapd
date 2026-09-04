@@ -1,0 +1,12 @@
+#!/bin/bash
+
+set -e
+
+# Only invite when there's a reader to use and it isn't set up yet (the lock
+# PAM file is the last thing the setup writes on success).
+if strapd-hw-fingerprint && [[ ! -f /etc/pam.d/strapd-lock-fingerprint ]] &&
+  strapd-done ensure fingerprint-setup-invitation; then
+  strapd-notification-send -u critical -g 󰈷 "Setup Fingerprint Reader" \
+    "Enable sudo and unlocking with your fingerprint." \
+    --exec strapd-launch-floating-terminal-with-presentation strapd-setup-security-fingerprint
+fi

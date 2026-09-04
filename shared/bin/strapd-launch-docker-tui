@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# strapd:summary=Open the Docker TUI (lazydocker) with access to the Docker daemon
+# strapd:hidden=true
+
+# The install user is NOT in the docker group by default: membership is
+# root-equivalent (a container can bind-mount / and rewrite the host as root).
+# lazydocker needs the root-owned socket, so without the group that access is
+# gated behind a polkit prompt; with sudoless Docker opted into, the socket is
+# already reachable. strapd-sudo-docker answers that for this session, so the
+# prompt stays until the reboot that grants the group.
+#
+# pkexec sanitizes the environment, so carry TERM through for the TUI.
+if strapd-sudo-docker; then
+  exec pkexec /usr/bin/env TERM="${TERM:-xterm-256color}" lazydocker
+else
+  exec lazydocker
+fi

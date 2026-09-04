@@ -1,0 +1,159 @@
+# strapd core package list for Debian 13 (trixie), restricted to what trixie's
+# own archive carries. install.sh installs these with `apt-get install`.
+#
+# This is the Debian translation of arch/install/strapd-base.packages. Package
+# names are Debian's, which differ from Arch's more often than not; the notable
+# renames, so an auditor can follow them back:
+#
+#   avahi -> avahi-daemon            docker -> docker.io
+#   cups-pdf -> printer-driver-cups-pdf   fd -> fd-find (binary: fdfind)
+#   mako -> mako-notifier            bat  -> bat (binary: batcat)
+#   networkmanager -> network-manager     nss-mdns -> libnss-mdns
+#   sushi -> gnome-sushi             tldr -> tealdeer
+#   zbar -> zbar-tools               tesseract -> tesseract-ocr(+-eng)
+#   python-gobject -> python3-gi     nautilus-python -> python3-nautilus
+#   gvfs-{mtp,nfs,smb} -> gvfs-backends (one package covers all three)
+#   fcitx5-gtk -> fcitx5-frontend-gtk3 + -gtk4
+#   fcitx5-qt  -> fcitx5-frontend-qt5 + -qt6
+#   qemu-user-static-binfmt -> qemu-user-static   greetd-tuigreet -> tuigreet
+#   libreoffice-fresh -> libreoffice   qt6-imageformats -> qt6-image-formats-plugins
+#
+# Folded into another package (so not listed): bluez-utils -> bluez.
+#
+# NOT here, because trixie does not package them, see strapd-external.packages:
+# the modern Wayland stack strapd is built on. niri, mangowc, the Noctalia shell
+# (and its quickshell), xwayland-satellite, hyprpicker. uwsm is not packaged
+# either, but it is load-bearing (strapd-session execs `uwsm start`), so the
+# install builds it from source in install/config/build-uwsm.sh rather than
+# leave it to the external list; its runtime deps (python3-xdg, python3-dbus)
+# and dbus-user-session are here. With uwsm built, sway installs and runs from
+# this list; niri and mango still need building from strapd-external.packages.
+#
+# Dropped as Arch-only (no Debian meaning): expac, pacman-contrib,
+# kernel-modules-hook. Substituted with the nearest Debian equivalent where the
+# exact package is absent: fonts-jetbrains-mono for the Nerd-patched font (the
+# Nerd variant is not in Debian), tealdeer for the tldr client.
+
+alsa-utils
+avahi-daemon
+bash-completion
+bat
+bluez
+bluez-tools
+bolt
+brightnessctl
+btop
+chromium
+clang
+cups
+cups-browsed
+cups-filters
+dbus-user-session
+ddcutil
+docker-buildx
+docker-compose
+docker.io
+dosfstools
+evince
+exfatprogs
+eza
+fakeroot
+fastfetch
+fcitx5
+fcitx5-frontend-gtk3
+fcitx5-frontend-gtk4
+fcitx5-frontend-qt5
+fcitx5-frontend-qt6
+fd-find
+ffmpegthumbnailer
+fontconfig
+fonts-font-awesome
+fonts-jetbrains-mono
+fonts-noto-cjk
+fonts-noto-color-emoji
+fonts-noto-core
+foot
+fuzzel
+fzf
+gammastep
+git
+gnome-disk-utility
+gnome-keyring
+gnome-sushi
+gnome-themes-extra
+greetd
+grim
+gum
+gvfs-backends
+imagemagick
+imv
+inetutils-tools
+inotify-tools
+inxi
+jq
+kdenlive
+lazygit
+less
+libmariadb3
+libnss-mdns
+libpq5
+libreoffice
+libsecret-1-0
+libvips-tools
+libyaml-0-2
+llvm
+lua5.1
+luarocks
+mako-notifier
+man-db
+mpv
+mpv-mpris
+nautilus
+neovim
+network-manager
+obs-studio
+pamixer
+playerctl
+plocate
+plymouth
+power-profiles-daemon
+printer-driver-cups-pdf
+python3-dbus
+python3-gi
+python3-nautilus
+python3-poetry-core
+python3-xdg
+qemu-user-static
+qrencode
+qt6-image-formats-plugins
+ripgrep
+ruby
+slurp
+socat
+starship
+sway
+swaybg
+swaylock
+system-config-printer
+tealdeer
+tesseract-ocr
+tesseract-ocr-eng
+tmux
+tree-sitter-cli
+tuigreet
+udiskie
+ufw
+unzip
+whois
+wireless-regdb
+wireplumber
+wl-clipboard
+wtype
+webp-pixbuf-loader
+xdg-desktop-portal-gtk
+xdg-terminal-exec
+xournalpp
+yaru-theme-icon
+yt-dlp
+zbar-tools
+zoxide

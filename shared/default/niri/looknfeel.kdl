@@ -1,0 +1,59 @@
+// Look and feel.
+//
+// The colors below are Everforest's `accent` and `muted` out of
+// themes/everforest/colors.toml, spelled out rather than templated. Phase 6
+// adds a niri template target and this file becomes a .tpl; until it does,
+// switching themes will not move these two values, and Everforest is the only
+// palette v1 ships anyway.
+
+layout {
+    gaps 10
+
+    // What is behind the wallpaper. strapd-theme-bg-apply draws the current
+    // theme's image over this, so it shows through only before a theme has
+    // been applied or when a theme ships no background, and in that case it
+    // should be the same color the other two compositors paint.
+    background-color "#2d353b"
+
+    // Niri scrolls columns rather than tiling them, so a focused column that
+    // jumps to the middle of the screen on every focus change is disorienting
+    // in a way it never was under Hyprland's dwindle.
+    center-focused-column "never"
+
+    // Half the screen by default, thirds and two-thirds a keystroke away.
+    default-column-width { proportion 0.5; }
+
+    preset-column-widths {
+        proportion 0.33333
+        proportion 0.5
+        proportion 0.66667
+    }
+
+    focus-ring {
+        width 2
+        active-color "#7fbbb3"
+        inactive-color "#475258"
+    }
+
+    // Niri draws a focus ring *and* a border, and both at once is a double
+    // outline on every window. The ring is the one that follows focus.
+    border {
+        off
+    }
+}
+
+// Client-side decorations put a titlebar on every GTK window; with a
+// keyboard-driven compositor that titlebar is pure lost height.
+prefer-no-csd
+
+screenshot-path "~/Pictures/Screenshots/Screenshot from %Y-%m-%d %H-%M-%S.png"
+
+// strapd has its own keybinding cheatsheet, and the actions it lists come
+// from keybindings/actions.toml rather than from niri's view of its own binds.
+hotkey-overlay {
+    skip-at-startup
+}
+
+cursor {
+    xcursor-size 24
+}

@@ -1,0 +1,32 @@
+// Niri configuration. https://yalter.github.io/niri/
+//
+// strapd loads in three passes, and niri's includes are positional, the
+// last file to set something wins:
+//
+//   1. strapd's defaults, out of the package.
+//   2. What was generated for this machine: your keyboard layout and the
+//      keybinding table.
+//   3. Your own files, below. They load last, so they win.
+//
+// Everything past the first include is yours to edit. The first one is not:
+// point it somewhere else and package updates stop reaching your session.
+
+include "/usr/share/strapd/default/niri/strapd.kdl"
+
+// Generated, do not edit these two, they are overwritten. The keyboard
+// layout comes from /etc/vconsole.conf (change it with localectl); the binds
+// come from the keybinding table, which is
+// /usr/share/strapd/keybindings/actions.toml until you copy it to
+// ~/.config/strapd/keybindings.toml and make it yours. Both are rewritten
+// at every login, and on demand with `strapd refresh keyboard layout` and
+// `strapd refresh keybindings`.
+include "~/.local/state/strapd/keyboard/niri.kdl"
+include "~/.local/state/strapd/keybindings/niri.kdl"
+
+// Yours.
+include "monitors.kdl"
+include "input.kdl"
+include "bindings.kdl"
+include "looknfeel.kdl"
+include "windows.kdl"
+include "autostart.kdl"

@@ -1,0 +1,92 @@
+#!/bin/bash
+
+# strapd:summary=Shared helpers for animating the About branding (source this, don't run it).
+# strapd:group=branding
+# strapd:name=about-animation
+# strapd:hidden=true
+
+# A band of light leans across the logo, rests, and leans across again. Two
+# columns per row puts it at 45 degrees, where a cell is twice as tall as wide.
+ESC=$'\e'
+# Bright white, so the band does not depend on how the terminal reads bold: no
+# regular colour brightens into bright white, but foot's bold-in-bright would
+# turn a bold green logo the same bright green a green band would have used.
+SHEEN_BAND="${ESC}[1m${ESC}[97m"
+SHEEN_SLANT=2
+SHEEN_HALF=2
+SHEEN_FRAME_SECONDS=0.025
+SHEEN_REST_TICKS=8
+# Re-measure the grid every half second, the cadence a still logo already cost,
+# rather than spawning a process per frame.
+SHEEN_POLL_FRAMES=20
+
+# A frame is one string holding every row of the logo, positioned and coloured,
+# so a tick writes the whole logo at once and never shows it half drawn.
+compose_frame() {
+  local centre=$1
+  local row line length at from to frame=""
+
+  for (( row = 0; row < SHEEN_ROWS; row++ )); do
+    line=${SHEEN_LINES[row]}
+    length=${#line}
+
+    # Running off the right needs no clamp, since a slice starting past the end
+    # of a line is already empty, but a negative offset would count from the end.
+    at=$(( centre - row * SHEEN_SLANT ))
+    from=$(( at - SHEEN_HALF ))
+    from=$(( from < 0 ? 0 : from ))
+    to=$(( at + SHEEN_HALF + 1 ))
+    to=$(( to < 0 ? 0 : to ))
+
+    frame+="${ESC}[$((SHEEN_TOP + row));${SHEEN_LEFT}H"
+    frame+="${SHEEN_BASE}${line:0:from}${SHEEN_BAND}${line:from:to - from}${SHEEN_BASE}${line:to}"
+  done
+
+  SHEEN_COMPOSED=$frame
+}
+
+# Builds every frame up front: a tick recomputing a logo's worth of colour spans
+# in bash would not hold the frame rate, and the sweep is the same every time.
+# Also answers whether this logo can be animated at all -- one it cannot put
+# back exactly as it found it is one to leave alone.
+#
+#   sheen_build <logo-file> <top-row> <left-column> <base-colour> <columns-available>
+sheen_build() {
+  local file=$1 columns=$5
+  SHEEN_TOP=$2
+  SHEEN_LEFT=$3
+  SHEEN_BASE=$4
+
+  SHEEN_LINES=()
+  # A failing redirection reports itself before 2>/dev/null would apply, so order
+  # it first: the caller's window must not get a shell error painted across it.
+  mapfile -t SHEEN_LINES 2>/dev/null <"$file" || return 1
+  SHEEN_ROWS=${#SHEEN_LINES[@]}
+  (( SHEEN_ROWS > 0 )) || return 1
+
+  local row line width=0
+  for (( row = 0; row < SHEEN_ROWS; row++ )); do
+    line=${SHEEN_LINES[row]}
+
+    # A renderer substitutes $1 to $9 for colours, so a logo written with those is
+    # not the text that reached the screen.
+    [[ $line == *'$'* ]] && return 1
+
+    # These frames slice by character and a terminal draws by column, so one
+    # character has to be one cell: not a wide glyph, a combining mark, a joined
+    # emoji, a tab or an escape, and not a shell whose locale counts bytes.
+    (( ${#line} == $(printf '%s' "$line" | LC_ALL=C.UTF-8 wc -L) )) || return 1
+
+    if (( ${#line} > width )); then
+      width=${#line}
+    fi
+  done
+  (( width > 0 && width <= columns )) || return 1
+
+  SHEEN_FRAMES=()
+  local centre last=$(( width + SHEEN_ROWS * SHEEN_SLANT + SHEEN_HALF ))
+  for (( centre = -SHEEN_HALF; centre <= last; centre++ )); do
+    compose_frame "$centre"
+    SHEEN_FRAMES+=("$SHEEN_COMPOSED")
+  done
+}

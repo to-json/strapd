@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# strapd:summary=Print the focused window as JSON: its pid, app-id and title
+# strapd:examples=strapd wm focused-window
+
+set -uo pipefail
+
+# Normalized to {"pid":N,"app_id":"...","title":"..."}: niri calls the field
+# app_id, mango appid, and sway calls the title `name` and leaves app_id null
+# for XWayland windows, where the class is the nearest thing.
+#
+# Nothing focused is a normal state, so it exits 1 and says nothing. A session
+# this cannot ask at all does say so.
+
+# The socket, not XDG_CURRENT_DESKTOP, picks the backend: the socket is what
+# this has to talk to.
+if [[ -n ${NIRI_SOCKET:-} ]]; then
+  # niri prints a bare `null` and exits 0 when no window is focused.
+  window=$(niri msg -j focused-window 2>/dev/null |
+    jq -c 'select(. != null) | {pid, app_id, title}')
+elif [[ -n ${SWAYSOCK:-} ]]; then
+  # Sway focuses the workspace itself when it holds no windows, so the focused
+  # node is not always a window: take the first focused node that has a pid.
+  window=$(swaymsg -t get_tree 2>/dev/null |
+    jq -c 'first(recurse(.nodes[]?, .floating_nodes[]?)
+                 | select(.focused == true and .pid != null))
+           | {pid, app_id: (.app_id // .window_properties.class), title: .name}')
+elif [[ -n ${MANGO_INSTANCE_SIGNATURE:-} ]]; then
+  # mmsg reports having no answer as {"error":...} and still exits 0.
+  window=$(mmsg get focusing-client 2>/dev/null |
+    jq -c 'select(has("error") | not) | {pid, app_id: .appid, title}')
+else
+  echo "strapd-wm-focused-window: no niri, sway or mango session to ask" >&2
+  exit 2
+fi
+
+[[ -n ${window:-} && $window != null ]] || exit 1
+
+printf '%s\n' "$window"

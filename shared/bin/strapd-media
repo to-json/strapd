@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# strapd:summary=Control whatever is playing
+# strapd:args=<playPause|play|pause|next|previous|stop>
+# strapd:examples=strapd media playPause | strapd media next
+
+# MPRIS is a D-Bus interface players implement directly and playerctl is the
+# client for it, so this needs no bar running and keeps working when one is.
+#
+# camelCase is the primary spelling because that is what actions.toml names.
+# The spellings a person would type by hand are accepted beside it.
+
+usage() {
+  echo "Usage: strapd-media <playPause|play|pause|next|previous|stop>" >&2
+  exit 2
+}
+
+(( $# == 1 )) || usage
+
+strapd-cmd-present playerctl || {
+  echo "strapd-media: playerctl is not installed" >&2
+  exit 2
+}
+
+case "${1,,}" in
+  playpause | play-pause | toggle) command=play-pause ;;
+  play) command=play ;;
+  pause) command=pause ;;
+  next | forward) command=next ;;
+  previous | prev | back) command=previous ;;
+  stop) command=stop ;;
+  *) usage ;;
+esac
+
+# Nothing playing is not a failure: playerctl exits 1 with "No players found",
+# which would make a perfectly ordinary keypress look like a broken one.
+playerctl "$command" 2>/dev/null || exit 0

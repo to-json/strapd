@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# strapd:summary=Open the Plymouth unlock screen switcher
+
+preview_dir="${XDG_CACHE_HOME:-$HOME/.cache}/strapd/unlock-selector/previews"
+
+rm -rf "$preview_dir"
+mkdir -p "$preview_dir"
+
+ln -s "$STRAPD_PATH/default/plymouth/preview-unlock.png" "$preview_dir/default.png"
+
+strapd-plymouth-list | while read -r name; do
+  ln -s "$(strapd-theme-dir "$name")/preview-unlock.png" "$preview_dir/$name.png" 2>/dev/null
+done
+
+current=$(strapd-plymouth-current)
+selected=""
+[[ -n $current && -e $preview_dir/$current.png ]] && selected="$preview_dir/$current.png"
+
+exec strapd-menu-images --print-name --show-labels --selected "$selected" "$preview_dir"

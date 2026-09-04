@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# strapd:summary=Print the sink whose volume and mute a given output really uses
+# strapd:args=[sink-name]
+# strapd:group=audio
+# strapd:examples=strapd audio output sink | strapd audio output sink strapd_speaker_tuning
+
+set -uo pipefail
+
+# A DSP sink -- a speaker tuning filter-chain, or EasyEffects -- can be the
+# selected output without being where loudness lives: changing its volume alters
+# the level going *into* the processing, so the display moves while the speakers
+# do not, and on a chain with a limiter the tone changes too. Resolve through it
+# to the physical sink it feeds.
+#
+# With no argument this resolves the current default output, so headphones or
+# HDMI return those. Callers describing some *other* output pass it explicitly.
+
+sink="${1:-$(pactl get-default-sink 2>/dev/null)}"
+
+if [[ -z $sink || $sink == alsa_output.* ]]; then
+  printf '%s\n' "$sink"
+  exit 0
+fi
+
+# A DSP sink feeds its physical output through a stream of its own; follow that
+# stream down to the sink underneath.
+downstream="$(pactl list sink-inputs 2>/dev/null |
+  awk -v virt="$sink" '
+    /^Sink Input #/ {target = ""}
+    /^[[:space:]]*Sink:/ {target = $2}
+    /node\.name = / {
+      name = $0
+      sub(/.*node\.name = "/, "", name)
+      sub(/"$/, "", name)
+      if (index(name, virt) == 1 && target != "") {print target; exit}
+    }
+    /application\.name = "EasyEffects"/ {
+      if (virt == "easyeffects_sink" && target != "") {print target; exit}
+    }')"
+
+if [[ -n $downstream ]]; then
+  name="$(pactl list sinks short 2>/dev/null |
+    awk -v id="$downstream" '$1 == id {print $2; exit}')"
+  if [[ -n $name ]]; then
+    printf '%s\n' "$name"
+    exit 0
+  fi
+fi
+
+# Nothing resolvable downstream; the DSP sink may simply be idle and unlinked.
+printf '%s\n' "$sink"

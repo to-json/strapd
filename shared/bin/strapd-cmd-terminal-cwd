@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# strapd:summary=Print the current working directory of the active terminal window
+# strapd:hidden=true
+
+# What "open a terminal here" means: the directory the shell in the focused
+# terminal is sitting in. Two ways to find it, because a terminal multiplexing
+# its own tabs is the only one that knows which tab is in front.
+
+focused=$(strapd-wm-focused-window) || { echo "$HOME"; exit; }
+terminal_pid=$(jq -r '.pid' <<<"$focused")
+
+kitty_socket="$XDG_RUNTIME_DIR/strapd-kitty-$terminal_pid"
+cwd=""
+
+if [[ -S $kitty_socket ]]; then
+  cwd=$(kitten @ --to "unix:$kitty_socket" ls --match "state:focused" 2>/dev/null |
+    jq -r '.[].tabs[].windows[].cwd // empty')
+else
+  # The window's own pid is the terminal; the shell is its child, and the shell
+  # is what has a working directory worth inheriting.
+  shell_pid=$(pgrep -P "$terminal_pid" | tail -n1)
+
+  if [[ -n $shell_pid ]]; then
+    cwd=$(readlink -f "/proc/$shell_pid/cwd" 2>/dev/null)
+    # Only a login shell's directory. A focused window running a build, an
+    # editor or a pager would otherwise hand out whatever it chdir'd into.
+    shell=$(readlink -f "/proc/$shell_pid/exe" 2>/dev/null)
+    grep -Fqsx "$shell" /etc/shells || cwd=""
+  fi
+fi
+
+if [[ -d $cwd ]]; then
+  echo "$cwd"
+else
+  echo "$HOME"
+fi

@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# strapd:summary=Toggle bar visibility without killing the strapd shell
+# strapd:args=[toggle|on|off]
+# strapd:examples=strapd toggle bar | strapd toggle bar off | strapd toggle bar on
+
+strapd-toggle bar-off "${1:-toggle}"

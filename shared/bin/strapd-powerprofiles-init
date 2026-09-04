@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# strapd:summary=Set the correct power profile on boot based on current AC/battery state.
+
+exec strapd-powerprofiles-set autodetect

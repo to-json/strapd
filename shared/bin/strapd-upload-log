@@ -1,0 +1,157 @@
+#!/bin/bash
+
+# strapd:summary=Collect logs for sharing (upload disabled until logs.bootstrapd.org exists)
+# strapd:args=<log-file>
+# strapd:hidden=true
+
+LOG_TYPE="${1:-install}"
+TEMP_LOG="/tmp/upload-log.txt"
+SYSTEM_INFO="/tmp/system-info.txt"
+
+if strapd-cmd-present fastfetch; then
+  {
+    echo "========================================="
+    echo "SYSTEM INFORMATION"
+    echo "========================================="
+    fastfetch --logo none --pipe 2>/dev/null || echo "Failed to get system info"
+    echo ""
+    echo "========================================="
+    echo "LOG CONTENT"
+    echo "========================================="
+    echo ""
+  } >"$SYSTEM_INFO"
+else
+  {
+    echo "========================================="
+    echo "SYSTEM INFORMATION"
+    echo "========================================="
+    echo "Hostname: $(uname -n)"
+    echo "Kernel: $(uname -r)"
+    echo "Date: $(date)"
+    echo ""
+    echo "========================================="
+    echo "LOG CONTENT"
+    echo "========================================="
+    echo ""
+  } >"$SYSTEM_INFO"
+fi
+
+same_or_prefix_log() {
+  local a="$1" b="$2" size_a size_b min_size
+  [[ -s $a && -s $b ]] || return 1
+  cmp -s "$a" "$b" && return 0
+
+  size_a=$(stat -c '%s' "$a" 2>/dev/null) || return 1
+  size_b=$(stat -c '%s' "$b" 2>/dev/null) || return 1
+  if (( size_a < size_b )); then
+    min_size=$size_a
+  else
+    min_size=$size_b
+  fi
+  (( min_size > 0 )) || return 1
+
+  cmp -n "$min_size" "$a" "$b" >/dev/null 2>&1
+}
+
+case "$LOG_TYPE" in
+install)
+  # In the live ISO before reboot the target system is mounted at /mnt, so the
+  # install log is at /mnt/var/log; on the installed system it is at /var/log.
+  # /mnt takes precedence, being present only in the ISO context.
+  ARCHINSTALL_LOG="/var/log/archinstall/install.log"
+  LIVE_STRAPD_LOG="/var/log/strapd-install.log"
+  TARGET_STRAPD_LOG="/mnt/var/log/strapd-install.log"
+
+  cat "$SYSTEM_INFO" >"$TEMP_LOG"
+  if [[ -s $ARCHINSTALL_LOG ]]; then
+    printf '\n========================================\nARCHINSTALL SUBSYSTEM LOG (%s)\n========================================\n\n' "$ARCHINSTALL_LOG" >>"$TEMP_LOG"
+    cat "$ARCHINSTALL_LOG" >>"$TEMP_LOG"
+  fi
+
+  if [[ -s $LIVE_STRAPD_LOG ]]; then
+    printf '\n========================================\nSTRAPD INSTALL LOG (%s)\n========================================\n\n' "$LIVE_STRAPD_LOG" >>"$TEMP_LOG"
+    cat "$LIVE_STRAPD_LOG" >>"$TEMP_LOG"
+  fi
+
+  if [[ -s $TARGET_STRAPD_LOG ]] && ! same_or_prefix_log "$LIVE_STRAPD_LOG" "$TARGET_STRAPD_LOG"; then
+    printf '\n========================================\nTARGET STRAPD INSTALL LOG (%s)\n========================================\n\n' "$TARGET_STRAPD_LOG" >>"$TEMP_LOG"
+    cat "$TARGET_STRAPD_LOG" >>"$TEMP_LOG"
+  fi
+
+  if [[ ! -s $LIVE_STRAPD_LOG && ! -s $TARGET_STRAPD_LOG ]]; then
+    echo "Warning: strapd install log not found (looked at /var/log and /mnt/var/log)" >&2
+  fi
+
+  if [[ ! -s $TEMP_LOG ]]; then
+    echo "Error: No install logs found"
+    exit 1
+  fi
+
+  echo "Uploading installation log to logs.bootstrapd.org..."
+  ;;
+
+this-boot)
+  cat "$SYSTEM_INFO" >"$TEMP_LOG"
+  journalctl -b 0 >>"$TEMP_LOG" 2>/dev/null
+
+  if [[ ! -s $TEMP_LOG ]]; then
+    echo "Error: No logs found for current boot"
+    exit 1
+  fi
+
+  echo "Uploading current boot logs to logs.bootstrapd.org..."
+  ;;
+
+last-boot)
+  cat "$SYSTEM_INFO" >"$TEMP_LOG"
+  journalctl -b -1 >>"$TEMP_LOG" 2>/dev/null
+
+  if [[ ! -s $TEMP_LOG ]]; then
+    echo "Error: No logs found for previous boot"
+    exit 1
+  fi
+
+  echo "Uploading previous boot logs to logs.bootstrapd.org..."
+  ;;
+
+installed|system-info)
+  cat "$SYSTEM_INFO" >"$TEMP_LOG"
+  {
+    echo ""
+    echo "========================================="
+    echo "INSTALLED PACKAGES (pacman -Q)"
+    echo "========================================="
+    pacman -Q 2>/dev/null || echo "Failed to get package list"
+  } >>"$TEMP_LOG"
+
+  if [[ ! -s $TEMP_LOG ]]; then
+    echo "Error: Failed to gather system information"
+    exit 1
+  fi
+
+  echo "Uploading system information to logs.bootstrapd.org..."
+  ;;
+
+*)
+  echo "Usage: $0 [install|this-boot|last-boot|installed|system-info]"
+  echo "  install      - Upload installation logs (default)"
+  echo "  this-boot    - Upload logs from current boot"
+  echo "  last-boot    - Upload logs from previous boot"
+  echo "  installed    - Upload system info and installed packages"
+  exit 1
+  ;;
+esac
+
+echo ""
+
+# Uploading is off until logs.bootstrapd.org is stood up. Everything above still
+# gathers the log, so it is left on disk rather than thrown away at the last
+# step. Restore the upload, and the summary line at the top, once the endpoint
+# answers:
+#   curl -sf -F "file=@$TEMP_LOG" -Fexpires=24 https://logs.bootstrapd.org/
+
+OUT="./strapd-$LOG_TYPE-log.txt"
+cp "$TEMP_LOG" "$OUT" || { echo "Error: could not write $OUT"; exit 1; }
+echo "Log upload is not available yet, so the log was kept instead of sent."
+echo "✓ Log saved to $(cd "$(dirname "$OUT")" && pwd)/$(basename "$OUT")"
+echo "  Attach it wherever you are reporting the problem." 

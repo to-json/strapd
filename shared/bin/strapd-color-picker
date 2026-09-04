@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# strapd:summary=Pick a colour from anywhere on screen and copy it
+# strapd:examples=strapd color-picker
+
+set -uo pipefail
+
+# hyprpicker despite the name: it talks wlr-screencopy and wlr-layer-shell, so
+# it works on all three of strapd's compositors.
+#
+# Toggling matters because it freezes the screen: a second press has to dismiss
+# it, or the desktop stays frozen behind a picker with no visible way out.
+pkill -u "$(id -u)" -x hyprpicker && exit 0
+
+exec hyprpicker -a

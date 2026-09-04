@@ -1,0 +1,35 @@
+// What the session starts.
+//
+// Noctalia is the shell, and it is started below. Everything here runs after
+// uwsm finalize, because until the session announces itself there is no
+// systemd user environment for any of it to inherit.
+
+// Hand WAYLAND_DISPLAY and friends to systemd and dbus, and tell uwsm the
+// compositor is up. It has to happen here rather than in strapd-session: uwsm starts the
+// compositor and then waits for the session to announce itself. Without this
+// line niri runs for thirty seconds, never announces, and gets SIGTERMed,
+// which is exactly what the first real boot of this config did.
+//
+// Hyprland needed no equivalent because it has native uwsm support. None of
+// strapd's three compositors do.
+spawn-at-startup "uwsm" "finalize"
+
+// First-run provisioning: no-ops on every boot after the first.
+spawn-at-startup "strapd-provision-first-run"
+
+spawn-at-startup "strapd-powerprofiles-init"
+
+// The shell: bar, panels, OSDs. Started before the background is applied,
+// because when it is running it is what draws the background.
+spawn-at-startup "noctalia" "-d"
+
+// The current theme's background, handed to the shell if it came up, drawn
+// with swaybg if it did not.
+spawn-at-startup "bash" "-c" "sleep 1 && strapd-theme-bg-apply"
+
+// Automount removable media without a tray icon or a notification.
+spawn-at-startup "udiskie" "--automount" "--no-notify" "--no-tray"
+
+// User hooks, after the session has settled rather than in the middle of it
+// coming up.
+spawn-at-startup "bash" "-c" "sleep 2 && strapd-hook post-boot"

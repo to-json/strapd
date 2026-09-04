@@ -1,0 +1,122 @@
+#!/bin/bash
+
+# strapd:summary=Show or adjust brightness on the focused display.
+# strapd:args=[--no-osd] [--monitor name] [+N%|N%-|N%|off|on]
+# strapd:examples=strapd brightness display | strapd brightness display +5% | strapd brightness display --monitor DP-1 50% | strapd brightness display off | strapd brightness display on
+
+no_osd=0
+monitor=""
+
+while (( $# > 0 )); do
+  case "$1" in
+  --no-osd)
+    no_osd=1
+    shift
+    ;;
+  --monitor)
+    (( $# >= 2 )) || exit 1
+    monitor="$2"
+    shift 2
+    ;;
+  *)
+    break
+    ;;
+  esac
+done
+
+backlight_brightness() {
+  brightnessctl -d "$1" -m 2>/dev/null | awk -F, '{ gsub("%", "", $4); print $4; found=1 } END{ exit !found }'
+}
+
+[[ -n $monitor ]] || monitor="$(strapd-wm-monitors --focused 2>/dev/null | jq -r '.name // empty')"
+
+monitor_is_internal() {
+  [[ $monitor =~ ^(eDP|LVDS|DSI)- ]]
+}
+
+# mango reports no make or model (see strapd-wm-monitors), so this is always
+# false there and an Apple Studio Display falls through to the DDC path, which
+# is the wrong protocol for those panels: it fails, and the brightness key does
+# nothing rather than something wrong.
+use_apple_display() {
+  strapd-wm-monitors 2>/dev/null | jq -e --arg monitor "$monitor" '
+    .[]
+    | select(if $monitor == "" then .focused else .name == $monitor end)
+    | select(.make == "Apple Computer Inc"
+             and ((.model // "") | test("StudioDisplay|ProDisplayXDR|Studio XDR")))
+  ' >/dev/null
+}
+
+use_ddc_display() {
+  [[ -n $monitor ]] && ! monitor_is_internal
+}
+
+if (( $# == 0 )); then
+  if use_apple_display; then
+    strapd-brightness-display-apple
+    exit
+  elif use_ddc_display; then
+    strapd-brightness-display-ddc "$monitor"
+    exit
+  fi
+
+  device="$(strapd-hw-display)" || exit 1
+  backlight_brightness "$device"
+  exit
+fi
+
+step="$1"
+
+if [[ $step == "off" ]]; then
+  strapd-wm-display-power off
+  exit 0
+elif [[ $step == "on" ]]; then
+  strapd-wm-display-power on
+  exit 0
+fi
+
+# Drop overlapping brightness key events so concurrent invocations do not race:
+# hardware key repeat can otherwise glitch OSD rendering.
+exec {lock_fd}>"${XDG_RUNTIME_DIR:-/tmp}/strapd-brightness-display.lock"
+flock -n "$lock_fd" || exit 0
+
+if use_apple_display; then
+  if (( no_osd )); then
+    strapd-brightness-display-apple --no-osd "$step"
+  else
+    strapd-brightness-display-apple "$step"
+  fi
+elif use_ddc_display; then
+  brightness="$(strapd-brightness-display-ddc "$monitor" "$step")" || exit 1
+  (( no_osd )) || strapd-osd -i brightness -p "$brightness"
+else
+  device="$(strapd-hw-display)" || exit 1
+
+  current=$(backlight_brightness "$device") || exit 1
+
+  # 1% steps at or below 5%, otherwise an absolute target percentage: raw
+  # backlight rounding otherwise makes the OSD steps uneven.
+  if [[ $step == "+5%" ]]; then
+    if (( current < 5 )); then
+      (( target = current + 1 ))
+    else
+      (( target = current + 5 ))
+    fi
+
+    (( target > 100 )) && target=100
+    step="$target%"
+  elif [[ $step == "5%-" ]]; then
+    if (( current <= 5 )); then
+      (( target = current - 1 ))
+    else
+      (( target = current - 5 ))
+    fi
+
+    (( target < 1 )) && target=1
+    step="$target%"
+  fi
+
+  brightnessctl -d "$device" set "$step" >/dev/null
+
+  (( no_osd )) || strapd-osd -i brightness -p "$(backlight_brightness "$device")"
+fi

@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# strapd:summary=Overwrite the user tmux config with the strapd default and reload tmux.
+
+strapd-refresh-config tmux/tmux.conf
+strapd-restart-tmux

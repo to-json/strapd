@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# strapd:summary=Open Voxtype AI model setup
+
+set -e
+
+strapd-launch-floating-terminal-with-presentation "voxtype setup model"
+strapd-restart-shell

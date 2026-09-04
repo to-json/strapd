@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# strapd:summary=Install support for using Xbox controllers with Steam/RetroArch/etc.
+# strapd:group=install
+# strapd:name=gaming xbox-controllers
+# strapd:requires-sudo=true
+
+set -e
+
+echo "Installing Xbox controller Bluetooth support..."
+
+# xpadneo, so controllers work out of the box.
+strapd-pkg-add linux-headers xpadneo-dkms
+
+echo blacklist xpad | sudo tee /etc/modprobe.d/blacklist-xpad.conf >/dev/null
+echo hid_xpadneo | sudo tee /etc/modules-load.d/xpadneo.conf >/dev/null
+
+# Controllers need the input group.
+needs_reboot=false
+if ! id -nG "$USER" | grep -qw input; then
+  sudo usermod -aG input "$USER"
+  needs_reboot=true
+fi
+
+# Swap drivers in the running kernel so a reboot isn't needed otherwise.
+if lsmod | grep -q '^xpad '; then
+  sudo modprobe -r xpad 2>/dev/null || needs_reboot=true
+fi
+
+if $needs_reboot; then
+  gum confirm "Reboot needed to finish setup. Reboot now?" && sudo reboot now
+  exit 0
+fi
+
+sudo modprobe hid_xpadneo
+
+echo ""
+echo "Now you can pair your Xbox controller with Bluetooth using Super + Ctrl + B."

@@ -1,0 +1,50 @@
+#!/bin/bash
+
+# strapd:summary=Install one of the approved terminals and set it as the default for strapd (Super + Return etc).
+# strapd:args=<alacritty|foot|ghostty|kitty>
+# strapd:requires-sudo=true
+
+if (($# == 0)); then
+  echo "Usage: strapd-install-terminal [alacritty|foot|ghostty|kitty]"
+  exit 1
+fi
+
+package="$1"
+
+case "$package" in
+alacritty) desktop_id="Alacritty.desktop" ;;
+foot) desktop_id="foot.desktop" ;;
+ghostty) desktop_id="com.mitchellh.ghostty.desktop" ;;
+kitty) desktop_id="kitty.desktop" ;;
+*)
+  echo "Unknown terminal: $package"
+  exit 1
+  ;;
+esac
+
+echo "Installing $package..."
+
+if strapd-pkg-add $package; then
+  # Custom desktop entries carry the X-TerminalArg* keys.
+  if [[ $package == "alacritty" ]]; then
+    mkdir -p ~/.local/share/applications
+    cp "$STRAPD_PATH/default/alacritty/$desktop_id" ~/.local/share/applications/
+  elif [[ $package == "foot" ]]; then
+    mkdir -p ~/.local/share/applications
+    cp "$STRAPD_PATH/applications/$desktop_id" ~/.local/share/applications/
+  fi
+
+  # Default config for optional terminals, when missing.
+  if [[ ! -e ~/.config/$package ]]; then
+    cp -Rpf "$STRAPD_PATH/config/$package" ~/.config/
+  fi
+
+  # Prioritize the proper terminal in xdg-terminals.list.
+  cat >~/.config/xdg-terminals.list <<EOF
+# Terminal emulator preference order for xdg-terminal-exec
+# The first found and valid terminal will be used
+$desktop_id
+EOF
+else
+  echo "Failed to install $package"
+fi

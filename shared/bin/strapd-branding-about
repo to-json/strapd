@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# strapd:summary=Edit, set, or reset About branding
+# strapd:group=branding
+# strapd:name=about
+# strapd:args=<image|text|reset>
+# strapd:examples=strapd branding about image | strapd branding about text | strapd branding about reset
+
+set -euo pipefail
+
+case "${1:-}" in
+image)
+  image=$(strapd-file-select --title "Pick PNG or SVG for About" --extensions "png svg")
+  if strapd-transcode-ascii "$image" ~/.config/strapd/branding/about.txt --width 54 --height 26; then
+    strapd-launch-about >/dev/null 2>&1
+  fi
+  ;;
+text)
+  strapd-launch-editor ~/.config/strapd/branding/about.txt >/dev/null 2>&1 && strapd-launch-about >/dev/null 2>&1
+  ;;
+reset)
+  cp "$STRAPD_PATH/icon.txt" ~/.config/strapd/branding/about.txt && strapd-launch-about >/dev/null 2>&1
+  ;;
+*)
+  echo "Usage: strapd-branding-about <image|text|reset>" >&2
+  exit 1
+  ;;
+esac

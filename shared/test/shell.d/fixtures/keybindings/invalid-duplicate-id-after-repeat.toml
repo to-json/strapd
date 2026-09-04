@@ -1,0 +1,18 @@
+[[action]]
+id = "workspace.focus.{n}"
+category = "workspace"
+description = "Switch to workspace {n}"
+key = "SUPER+{n}"
+repeat = { var = "n", range = [1, 3] }
+
+  [action.niri]
+  dispatch = "focus-workspace {n}"
+
+[[action]]
+id = "workspace.focus.2"
+category = "workspace"
+description = "Literal id colliding with an expanded repeat id"
+key = "SUPER+ALT+2"
+
+  [action.niri]
+  dispatch = "focus-workspace 2"

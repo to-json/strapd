@@ -1,0 +1,17 @@
+// strapd's Niri defaults.
+//
+// Loaded by ~/.config/niri/config.kdl, which loads its own files after this
+// one, niri includes are positional, so anything set here can be overridden
+// there. Nothing in this tree is yours to edit; a package update replaces it.
+//
+// Split one file per subject, so
+// that overriding one thing has an obvious file to read first.
+//
+// The session environment is not among them: it is the same for all three
+// compositors, so it lives in default/uwsm/env.d/10-strapd, which uwsm
+// sources before starting any of them.
+
+include "input.kdl"
+include "looknfeel.kdl"
+include "windows.kdl"
+include "autostart.kdl"

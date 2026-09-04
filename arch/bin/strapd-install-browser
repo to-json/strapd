@@ -1,0 +1,104 @@
+#!/bin/bash
+
+# strapd:summary=Install a supported browser
+# strapd:args=<chromium|chrome|brave|brave-origin|edge|firefox|zen>
+# strapd:examples=strapd install browser chromium | strapd install browser firefox
+
+set -e
+
+setup_policy_directory() {
+  sudo mkdir -p "$1"
+  sudo chmod a+rw "$1"
+}
+
+announce_browser_installed() {
+  echo ""
+  echo "$1 browser installed. Make it the default via Setup > Defaults > Browser."
+}
+
+copy_chromium_flags() {
+  mkdir -p ~/.config
+  cp -f "$STRAPD_PATH/config/chromium-flags.conf" "$1"
+  strapd-install-chromium-copy-url
+  strapd-install-chromium-ytdlp
+}
+
+setup_firefox_preferences() {
+  local distribution_dir="$1"
+
+  setup_policy_directory "$distribution_dir"
+  sudo cp -f "$STRAPD_PATH/default/firefox/policies.json" "$distribution_dir/policies.json"
+}
+
+setup_firefox_wayland() {
+  mkdir -p ~/.config/environment.d
+  echo "MOZ_ENABLE_WAYLAND=1" > ~/.config/environment.d/strapd-firefox-wayland.conf
+}
+
+case $1 in
+chromium)
+  echo "Installing Chromium..."
+  strapd-pkg-add chromium
+
+  setup_policy_directory /etc/chromium/policies/managed
+  copy_chromium_flags ~/.config/chromium-flags.conf
+  strapd-theme-set-browser
+  announce_browser_installed "Chromium"
+  ;;
+chrome)
+  echo "Installing Chrome..."
+  strapd-pkg-aur-add google-chrome || exit 1
+
+  setup_policy_directory /etc/opt/chrome/policies/managed
+  copy_chromium_flags ~/.config/chrome-flags.conf
+  strapd-theme-set-browser
+  announce_browser_installed "Chrome"
+  ;;
+edge)
+  echo "Installing Edge..."
+  strapd-pkg-aur-add microsoft-edge-stable-bin || exit 1
+
+  setup_policy_directory /etc/opt/edge/policies/managed
+  copy_chromium_flags ~/.config/microsoft-edge-stable-flags.conf
+  strapd-theme-set-browser
+  announce_browser_installed "Edge"
+  ;;
+brave)
+  echo "Installing Brave..."
+  strapd-pkg-aur-add brave-bin || exit 1
+
+  setup_policy_directory /etc/brave/policies/managed
+  copy_chromium_flags ~/.config/brave-flags.conf
+  strapd-theme-set-browser
+  announce_browser_installed "Brave"
+  ;;
+brave-origin)
+  echo "Installing Brave Origin..."
+  strapd-pkg-aur-add brave-origin-bin || exit 1
+
+  setup_policy_directory /etc/brave/policies/managed
+  copy_chromium_flags ~/.config/brave-origin-flags.conf
+  strapd-theme-set-browser
+  announce_browser_installed "Brave Origin"
+  ;;
+firefox)
+  echo "Installing Firefox..."
+  strapd-pkg-add firefox || exit 1
+
+  setup_firefox_preferences /usr/lib/firefox/distribution
+  setup_firefox_wayland
+  announce_browser_installed "Firefox"
+  ;;
+zen)
+  echo "Installing Zen..."
+  strapd-pkg-aur-add zen-browser-bin || exit 1
+
+  setup_firefox_preferences /opt/zen-browser/distribution
+  setup_firefox_wayland
+  announce_browser_installed "Zen"
+  ;;
+*)
+  echo "Usage: strapd-install-browser <chromium|chrome|brave|brave-origin|edge|firefox|zen>"
+  exit 1
+  ;;
+esac

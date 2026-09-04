@@ -1,0 +1,75 @@
+#!/bin/bash
+
+# strapd:summary=Apply strapd hardware-specific packages and system configuration
+# strapd:group=apply
+# strapd:requires-sudo=true
+# strapd:examples=strapd apply hardware --install-user ada
+# strapd:hidden=true
+
+set -euo pipefail
+
+usage() {
+  cat <<USAGE
+Usage: strapd apply hardware --install-user USER
+       strapd apply hardware --defer-provisioning
+
+Runs idempotent hardware detection/setup for the installed machine. This is
+called by strapd-apply-system during ISO finalization and can be rerun later
+for diagnostics or after hardware/package updates.
+
+--defer-provisioning runs without an install user (deferred-provisioning installs create the user at
+first boot); group grants are recorded in /var/lib/strapd/provisioning/groups.
+USAGE
+}
+
+install_user="${STRAPD_INSTALL_USER:-}"
+defer_provisioning=0
+while (($#)); do
+  case "$1" in
+    --install-user)
+      install_user="${2:-}"
+      shift 2
+      ;;
+    --defer-provisioning)
+      defer_provisioning=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+if (( EUID != 0 )); then
+  echo "Error: strapd-apply-hardware must run as root" >&2
+  exit 1
+fi
+
+if (( defer_provisioning )); then
+  install_user=""
+else
+  if [[ -z $install_user || $install_user == "root" ]]; then
+    echo "Error: --install-user must name the target non-root user" >&2
+    exit 1
+  fi
+
+  if ! getent passwd "$install_user" >/dev/null; then
+    echo "Error: user '$install_user' does not exist" >&2
+    exit 1
+  fi
+fi
+
+export STRAPD_INSTALL_USER="$install_user"
+export STRAPD_PATH="${STRAPD_PATH:-/usr/share/strapd}"
+export STRAPD_INSTALL="${STRAPD_INSTALL:-$STRAPD_PATH/install}"
+export STRAPD_INSTALL_LOG_FILE="${STRAPD_INSTALL_LOG_FILE:-/var/log/strapd-install.log}"
+export PATH="$STRAPD_PATH/bin:$PATH"
+
+source "$STRAPD_INSTALL/helpers/logging.sh"
+source "$STRAPD_INSTALL/hardware/all.sh"

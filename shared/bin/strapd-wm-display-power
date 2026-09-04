@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# strapd:summary=Turn every display off or back on (DPMS)
+# strapd:args=<on|off>
+# strapd:examples=strapd wm display-power off
+
+set -uo pipefail
+
+# Every display, not a named one: niri offers nothing narrower and mango's
+# sleep_monitor takes no target, so a per-monitor argument would be a promise
+# two of the three could not keep.
+#
+# Turning displays back on is not idempotent everywhere. sway reports whether a
+# monitor is lit, so a redundant `on` can be skipped -- which matters right after
+# resume, where a second DPMS enable forces another modeset and flashes the
+# panel at the unlock screen. niri and mango do not report it, so there the
+# command goes through and the flash is theirs to have.
+#
+# niri's half is unverified: DPMS is a DRM operation and niri in the VM runs
+# nested on the winit backend, which has no DRM to power off.
+
+action=${1:-}
+case "$action" in
+  on|off) ;;
+  *) echo "Usage: strapd-wm-display-power <on|off>" >&2; exit 2 ;;
+esac
+
+if [[ -n ${NIRI_SOCKET:-} ]]; then
+  if [[ $action == off ]]; then
+    niri msg action power-off-monitors >/dev/null 2>&1
+  else
+    niri msg action power-on-monitors >/dev/null 2>&1
+  fi
+elif [[ -n ${SWAYSOCK:-} ]]; then
+  if [[ $action == on ]]; then
+    # `all` is true of an empty list, so the count check keeps a session with no
+    # active output from claiming everything is already lit.
+    swaymsg -t get_outputs 2>/dev/null |
+      jq -e '[.[] | select(.active)] | length > 0 and all(.dpms)' >/dev/null 2>&1 && exit 0
+  fi
+  swaymsg "output * dpms $action" >/dev/null 2>&1
+elif [[ -n ${MANGO_INSTANCE_SIGNATURE:-} ]]; then
+  if [[ $action == off ]]; then
+    mmsg dispatch sleep_monitor >/dev/null 2>&1
+  else
+    mmsg dispatch wakeup_monitor >/dev/null 2>&1
+  fi
+else
+  echo "strapd-wm-display-power: no niri, sway or mango session to tell" >&2
+  exit 2
+fi

@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# strapd:summary=Reload btop configuration (used by the strapd theme switching).
+
+pkill -SIGUSR2 btop

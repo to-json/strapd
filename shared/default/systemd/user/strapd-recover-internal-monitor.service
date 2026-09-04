@@ -1,0 +1,15 @@
+[Unit]
+Description=Recover the internal monitor toggle when no external display is connected
+# Before the compositor starts, so a session that would have had no output
+# never gets that far.
+Before=graphical-session-pre.target
+# Set by the monitor commands, which are deferred; until then this keeps the
+# enabled unit inert instead of running a no-op at every login.
+ConditionPathExists=%h/.local/state/strapd/toggles/internal-monitor-disable
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/strapd-hw-recover-internal-monitor
+
+[Install]
+WantedBy=graphical-session-pre.target

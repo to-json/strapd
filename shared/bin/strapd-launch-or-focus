@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# strapd:summary=Launch an app, or focus its window if it is already open
+# strapd:args=<window-pattern> <launch-command>
+
+if (($# == 0)); then
+  echo "Usage: strapd-launch-or-focus [window-pattern] [launch-command]"
+  exit 1
+fi
+
+WINDOW_PATTERN="$1"
+LAUNCH_COMMAND="${2:-"uwsm-app -- $WINDOW_PATTERN"}"
+
+# Any failure to focus means launch, including "there is no compositor to ask":
+# run from a TTY or a session that is not one of ours, starting the app is
+# still the useful answer, and the shim has already said on stderr why it could
+# not look.
+strapd-wm-focus-window "$WINDOW_PATTERN" || eval exec setsid $LAUNCH_COMMAND

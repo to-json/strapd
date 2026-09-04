@@ -1,0 +1,102 @@
+#!/bin/bash
+# strapd:summary=Generate a compositor keybinding config from a keybinding TOML file
+# strapd:args=<file.toml> --backend <niri|sway|mango>
+# strapd:examples=strapd keybindings generate keybindings/default.toml --backend niri
+
+set -euo pipefail
+
+# Deriving the root from BASH_SOURCE instead looks right in a checkout and
+# breaks once installed: bin/ is symlinked into /usr/bin, so dirname/.. lands on
+# /usr. See keybindings/schema.md for the pipeline these four files implement.
+STRAPD_PATH="${STRAPD_PATH:-/usr/share/strapd}"
+LIB_DIR="$STRAPD_PATH/keybindings/lib"
+
+source "$LIB_DIR/toml-read.sh"
+source "$LIB_DIR/repeat-expand.sh"
+source "$LIB_DIR/validate.sh"
+source "$LIB_DIR/render-niri.sh"
+source "$LIB_DIR/render-sway.sh"
+source "$LIB_DIR/render-mango.sh"
+
+# Adding a fourth backend means: add its name here, source its
+# keybindings/lib/render-*.sh above, and define a render_<backend> function --
+# the dispatch below builds the function name from the --backend flag value.
+KNOWN_BACKENDS=(niri sway mango)
+
+usage() {
+  echo "usage: strapd-keybindings-generate <file.toml> --backend <backend>" >&2
+  echo "       strapd-keybindings-generate --list-backends" >&2
+  echo "  known backends: ${KNOWN_BACKENDS[*]}" >&2
+}
+
+backend_known() {
+  local candidate="$1" b
+  for b in "${KNOWN_BACKENDS[@]}"; do
+    [[ $b == "$candidate" ]] && return 0
+  done
+  return 1
+}
+
+file=""
+backend=""
+
+while (( $# > 0 )); do
+  case "$1" in
+    --backend)
+      if (( $# < 2 )); then
+        usage
+        exit 1
+      fi
+      backend="$2"
+      shift 2
+      ;;
+    --list-backends)
+      # So that a caller rendering every backend at once iterates over this
+      # list instead of keeping a second copy that a fourth could fall out of.
+      printf '%s\n' "${KNOWN_BACKENDS[@]}"
+      exit 0
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    -*)
+      usage
+      exit 1
+      ;;
+    *)
+      if [[ -n $file ]]; then
+        usage
+        exit 1
+      fi
+      file="$1"
+      shift
+      ;;
+  esac
+done
+
+if [[ -z $file || -z $backend ]]; then
+  usage
+  exit 1
+fi
+
+if ! backend_known "$backend"; then
+  echo "strapd-keybindings-generate: unknown backend '$backend' (known: ${KNOWN_BACKENDS[*]})" >&2
+  exit 1
+fi
+
+render_fn="render_$backend"
+if ! declare -F "$render_fn" >/dev/null; then
+  echo "strapd-keybindings-generate: backend '$backend' is known but no $render_fn function is defined" >&2
+  exit 1
+fi
+
+json=$(toml_to_json "$file") || exit 1
+json=$(expand_repeats "$json") || exit 1
+
+if ! json=$(validate_actions "$json" "$backend"); then
+  echo "strapd-keybindings-generate: validation failed for $file" >&2
+  exit 1
+fi
+
+"$render_fn" "$json"

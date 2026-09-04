@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# strapd:summary=Reboot after closing application windows
+# strapd:examples=strapd reboot | strapd system reboot
+# strapd:aliases=strapd reboot
+
+# Schedule the reboot in the user manager so closing the terminal's systemd
+# scope cannot terminate it before it runs.
+systemd-run --user --collect --quiet --on-active="2s" --timer-property=AccuracySec=100ms systemctl reboot --no-wall || exit 1
+
+strapd-osd -i reboot -m "Rebooting" -d 5000
+
+strapd-state clear re*-required
+
+strapd-wm-close-all
+sleep 1 # Allow apps like Chrome to shutdown correctly

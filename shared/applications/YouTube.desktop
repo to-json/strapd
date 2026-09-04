@@ -1,0 +1,8 @@
+[Desktop Entry]
+Version=1.0
+Name=YouTube
+Exec=strapd-launch-webapp https://youtube.com/
+Terminal=false
+Type=Application
+Icon=youtube
+StartupNotify=true

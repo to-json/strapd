@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# strapd:summary=Ensure default application launchers and mise wrappers are installed.
+
+mkdir -p ~/.local/share/applications
+cp "$STRAPD_PATH"/applications/*.desktop ~/.local/share/applications/
+
+if strapd-cmd-present alacritty; then
+  cp "$STRAPD_PATH/default/alacritty/Alacritty.desktop" ~/.local/share/applications/
+fi
+
+if [[ -f "$STRAPD_PATH/install/user/mise.sh" ]]; then
+  bash "$STRAPD_PATH/install/user/mise.sh"
+fi
+
+update-desktop-database ~/.local/share/applications

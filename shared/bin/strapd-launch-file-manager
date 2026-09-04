@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# strapd:summary=Launch the default file manager selected via strapd defaults.
+# strapd:args=[path]
+
+# Follows strapd-launch-editor, -browser and -terminal: read one line from
+# state/strapd/defaults/ and fall back to what the base packages install.
+#
+# No strapd-default-file-manager writes that line yet, so the fallback is always
+# the answer today. It reads the file anyway, because hard-coding nautilus here
+# would mean finding this again when the setter lands.
+
+default_file_manager="$HOME/.local/state/strapd/defaults/file-manager"
+
+if [[ -f $default_file_manager ]]; then
+  read -r file_manager <"$default_file_manager"
+fi
+
+: "${file_manager:=nautilus}"
+strapd-cmd-present "$file_manager" || file_manager="nautilus"
+
+# Nautilus reuses its running instance for a bare invocation, so a second press
+# would raise the old window rather than open one.
+if [[ ${file_manager##*/} == nautilus && $# -eq 0 ]]; then
+  exec setsid uwsm-app -- nautilus --new-window
+fi
+
+exec setsid uwsm-app -- "$file_manager" "$@"

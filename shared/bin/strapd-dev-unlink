@@ -1,0 +1,64 @@
+#!/bin/bash
+
+# strapd:summary=Restore strapd to the package install after reboot
+# strapd:group=dev
+# strapd:args=[--no-reboot]
+
+set -euo pipefail
+
+if (( EUID == 0 )); then
+  echo "Error: run strapd-dev-unlink as your user, not under sudo." >&2
+  exit 1
+fi
+
+prompt_reboot=1
+
+sudoers_file="/etc/sudoers.d/strapd-dev-path"
+
+if (( $# > 1 )); then
+  echo "Usage: strapd dev unlink [--no-reboot]" >&2
+  exit 1
+fi
+
+case "${1:-}" in
+  "")
+    ;;
+  --no-reboot)
+    prompt_reboot=0
+    ;;
+  -h|--help)
+    cat <<USAGE
+Usage: strapd dev unlink [--no-reboot]
+
+Writes /etc/strapd.conf so STRAPD_PATH resolves to /usr/share/strapd
+after reboot. This intentionally does not rewrite the running compositor,
+systemd, shell, or app-launcher environment; reboot to make every layer agree.
+
+Removes $sudoers_file, the drop-in that pointed sudo
+at the checkout, so sudo goes back to the packaged strapd-* immediately.
+
+Use --no-reboot when another command will handle the reboot prompt.
+USAGE
+    exit 0
+    ;;
+  *)
+    echo "Usage: strapd dev unlink [--no-reboot]" >&2
+    exit 1
+    ;;
+esac
+
+default_target="/usr/share/strapd"
+
+printf 'export STRAPD_PATH="%s"\n' "$default_target" | sudo tee /etc/strapd.conf >/dev/null
+
+# strapd-dev-link prepended the checkout to sudo's secure_path. Drop it in the
+# same step that drops the checkout, or sudo keeps running a tree nothing else
+# points at, and keeps trusting a user-writable directory for root's commands.
+sudo rm -f "$sudoers_file"
+
+echo "Pointed strapd at $default_target"
+echo
+
+if (( prompt_reboot )) && gum confirm "Reboot now to activate?"; then
+  strapd-system-reboot
+fi

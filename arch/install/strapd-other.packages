@@ -1,0 +1,66 @@
+# Packages strapd pulls in outside strapd-base.packages, hardware-conditional
+# drivers, kernels, and the pieces install/* installs directly. The ISO builder
+# reads this so they are available offline.
+#
+# AUR entries are in strapd-aur.packages.
+#
+# Some hardware packages resolve nowhere and are deliberately not listed: the
+# T2 MacBook set (apple-bcm-firmware, apple-t2-audio-config, linux-t2,
+# linux-t2-headers, t2fanrd), which lives in the t2linux repo strapd does not
+# add, and linux-ptl, linux-ptl-headers, intel-ipu7-camera and
+# dell-xps-touchpad-haptics, which have no source at all.
+#
+# install/hardware/apple/fix-t2.sh, intel/ptl-kernel.sh, intel/ipu7-camera.sh
+# and dell-xps-touchpad-haptics.sh still ask for those by name, so on the
+# machines they detect the install fails loudly rather than skipping in
+# silence. That is deliberate: a list entry resolving to nothing would paper
+# over it.
+
+autoconf-archive
+base
+base-devel
+broadcom-wl
+btrfs-progs
+dkms
+egl-wayland
+gst-plugin-pipewire
+gtk4-layer-shell
+libpulse
+intel-lpmd
+intel-media-driver
+libva-intel-driver
+libva-nvidia-driver
+limine
+linux
+linux-firmware
+linux-headers
+nvidia-open-dkms
+nvidia-utils
+lib32-nvidia-utils
+pipewire
+pipewire-alsa
+pipewire-jack
+pipewire-pulse
+qt6-wayland
+snapper
+sof-firmware
+thermald
+webp-pixbuf-loader
+zram-generator
+
+# Intel encoding processing
+libvpl
+vpl-gpu-rt
+
+# Vulkan drivers (auto-detected by hardware)
+vulkan-intel
+vulkan-radeon
+vulkan-asahi
+
+# Surface laptop support packages
+linux-firmware-marvell
+
+# Speaker tunings (LV2 limiter every tuning ends in)
+lsp-plugins-lv2
+
+# Framework 16

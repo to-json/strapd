@@ -1,0 +1,67 @@
+#!/bin/bash
+
+# strapd:summary=Toggle idle behavior so the system either idles normally or stays awake
+# strapd:group=toggle
+# strapd:args=[toggle|stay-awake|allow-idle|status]
+# strapd:examples=strapd toggle idle | strapd toggle idle stay-awake | strapd-toggle-idle --status
+
+STATE_DIR="$HOME/.local/state/strapd/indicators"
+STATE_FILE="$STATE_DIR/stay-awake"
+
+stay_awake_enabled() {
+  [[ -f $STATE_FILE ]]
+}
+
+print_status() {
+  if stay_awake_enabled; then
+    printf '{"enabled":true,"class":"enabled","tooltip":"Allow Idle Lock & Screensaver"}\n'
+  else
+    printf '{"enabled":false,"class":"disabled","tooltip":"Stay Awake"}\n'
+  fi
+}
+
+print_idle_state() {
+  if stay_awake_enabled; then
+    printf 'disabled\n'
+  else
+    printf 'enabled\n'
+  fi
+}
+
+apply_state() {
+  case "$1" in
+    stay-awake)
+      mkdir -p "$STATE_DIR"
+      touch "$STATE_FILE"
+      ;;
+    allow-idle)
+      rm -f "$STATE_FILE"
+      ;;
+  esac
+}
+
+case "${1:-toggle}" in
+  toggle)
+    if stay_awake_enabled; then
+      apply_state allow-idle
+    else
+      apply_state stay-awake
+    fi
+    print_idle_state
+    ;;
+  stay-awake|awake|on)
+    apply_state stay-awake
+    print_idle_state
+    ;;
+  allow-idle|idle|off)
+    apply_state allow-idle
+    print_idle_state
+    ;;
+  status|--status)
+    print_status
+    ;;
+  *)
+    echo "Usage: strapd-toggle-idle [toggle|stay-awake|allow-idle|status]" >&2
+    exit 1
+    ;;
+esac

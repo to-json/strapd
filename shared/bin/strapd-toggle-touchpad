@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# strapd:summary=Enable, disable, or toggle the touchpad
+# strapd:args=[on|off|toggle]
+
+exec strapd-toggle-input-device touchpad "${1:-toggle}"

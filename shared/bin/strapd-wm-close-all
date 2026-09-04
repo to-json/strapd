@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# strapd:summary=Close every open window, then return to the first workspace
+# strapd:examples=strapd wm close-all
+
+set -uo pipefail
+
+# Runs on the way to a reboot, so applications that save on exit get asked.
+# Every window, not just the visible ones: a document left on workspace 6 is
+# exactly the one that would be lost.
+#
+# Closing is a request, not an order, and per-window failures are ignored: a
+# window that closed itself between the list and the dispatch is ordinary.
+
+if [[ -n ${NIRI_SOCKET:-} ]]; then
+  close_window() { niri msg action close-window --id "$1" >/dev/null 2>&1; }
+  focus_first() { niri msg action focus-workspace 1 >/dev/null 2>&1; }
+elif [[ -n ${SWAYSOCK:-} ]]; then
+  close_window() { swaymsg "[con_id=$1] kill" >/dev/null 2>&1; }
+  focus_first() { swaymsg "workspace number 1" >/dev/null 2>&1; }
+elif [[ -n ${MANGO_INSTANCE_SIGNATURE:-} ]]; then
+  # Two comma conventions in one line, and getting either wrong is silent:
+  # `client,<id>` is a separate token aiming the dispatch at an unfocused
+  # window, but a function's own arguments are comma-joined onto the function.
+  # `mmsg dispatch view 1,0` answers {"error":"unknown function"} and exits 0.
+  close_window() { mmsg dispatch killclient "client,$1" >/dev/null 2>&1; }
+  focus_first() { mmsg dispatch view,1,0 >/dev/null 2>&1; }
+else
+  echo "strapd-wm-close-all: no niri, sway or mango session to ask" >&2
+  exit 2
+fi
+
+ids=$(strapd-wm-windows --all 2>/dev/null | jq -r '.[].id') || ids=""
+
+while read -r id; do
+  [[ -n $id ]] || continue
+  close_window "$id"
+done <<<"$ids"
+
+focus_first

@@ -1,0 +1,55 @@
+#!/bin/bash
+
+# strapd:summary=Install a theme from a git repository
+# strapd:args=[git-repo-url]
+# strapd:examples=strapd theme install https://github.com/example/strapd-example-theme.git
+# strapd:examples=strapd theme install git@github.com:example/strapd-example-theme.git
+
+if [[ -z $1 ]]; then
+  echo -e "\e[32mSee https://bootstrapd.org/themes/\n\e[0m"
+  REPO_URL=$(gum input --placeholder="Git repo URL (https or git@host:org/repo.git)" --header="")
+else
+  REPO_URL="$1"
+fi
+
+if [[ -z $REPO_URL ]]; then
+  exit 1
+fi
+
+# git reads a leading dash as an option, and `<helper>::<address>` as a remote
+# helper to run -- a bare word at the very start, which is what this matches.
+# An scp-style IPv6 host like git@[2001:db8::1]:org/repo.git carries `::` too
+# and must still clone.
+if [[ $REPO_URL == -* || $REPO_URL =~ ^[A-Za-z0-9][A-Za-z0-9+.-]*:: ]]; then
+  echo "Error: '$REPO_URL' names a git option or transport helper, not a repository."
+  exit 1
+fi
+
+THEMES_DIR="$HOME/.config/strapd/themes"
+
+# Strip the user@host: prefix from scp-style URLs so basename sees the path.
+REPO_PATH="$REPO_URL"
+[[ $REPO_PATH != *"://"* && $REPO_PATH == *:*/* ]] && REPO_PATH="${REPO_PATH#*:}"
+THEME_NAME=$(basename -- "$REPO_PATH" .git | sed -E 's/^strapd-//; s/-theme$//' | tr '[:upper:]' '[:lower:]')
+THEME_PATH="$THEMES_DIR/$THEME_NAME"
+
+# The name comes from the URL and is joined into a path that is about to be
+# removed, so a repo called `..` would take ~/.config/strapd with it. A leading
+# dot is refused with it: `host:-s/foo.git` leaves basename with `.git`.
+if [[ -z $THEME_NAME || $THEME_NAME == .* || $THEME_NAME == */* ]]; then
+  echo "Error: '$REPO_URL' does not give a usable theme name."
+  exit 1
+fi
+
+if [[ -d $THEME_PATH ]]; then
+  rm -rf "$THEME_PATH"
+fi
+
+if ! git clone -- "$REPO_URL" "$THEME_PATH"; then
+  echo "Error: Failed to clone theme repo."
+  exit 1
+fi
+
+# strapd-theme-set stages only the files an extra theme is allowed to
+# contribute, and names anything it dropped.
+strapd-theme-set "$THEME_NAME"

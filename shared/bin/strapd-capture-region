@@ -1,0 +1,158 @@
+#!/bin/bash
+
+# strapd:summary=Pick a screen region over frozen screen content
+# strapd:args=[region|windows|smart|fullscreen] [--keep-freeze] [--match-monitor]
+# strapd:hidden=true
+
+# Prints the picked geometry in slurp's "X,Y WxH" format, or exits 1 when the
+# pick is cancelled. Shared by screenshot and screen recording so the picker UX
+# stays identical.
+#
+#   region          freeform selection
+#   windows         snap selection to a monitor or window rectangle
+#   smart           freeform with window/monitor rects hinted; a bare click
+#                   (area < 20px^2) snaps to the rectangle it landed in
+#   fullscreen      the focused monitor, no interaction
+#
+#   --keep-freeze   leave the screen freeze running and print its PID as the
+#                   first output line (empty when no freeze was started); the
+#                   caller owns killing it
+#   --match-monitor print "monitor:NAME" instead when the picked geometry
+#                   exactly matches a monitor
+
+set -uo pipefail
+
+MODE=smart
+KEEP_FREEZE=false
+MATCH_MONITOR=false
+
+for arg in "$@"; do
+  case $arg in
+  --keep-freeze) KEEP_FREEZE=true ;;
+  --match-monitor) MATCH_MONITOR=true ;;
+  *) MODE=$arg ;;
+  esac
+done
+
+monitor_rects() {
+  strapd-wm-monitors 2>/dev/null |
+    jq -r '.[] | "\(.x),\(.y) \(.width)x\(.height)"'
+}
+
+# Windows stacked at identical geometry collapse to one rectangle: slurp cannot
+# tell them apart, and a duplicate is a rectangle the user can never reach.
+window_rects() {
+  strapd-wm-windows 2>/dev/null |
+    jq -r '[.[] | select(.x != null and .y != null)
+            | "\(.x),\(.y) \(.width)x\(.height)"] | unique[]'
+}
+
+focused_monitor_geo() {
+  strapd-wm-monitors --focused 2>/dev/null |
+    jq -r '"\(.x),\(.y) \(.width)x\(.height)"'
+}
+
+get_rectangles() {
+  monitor_rects
+  window_rects
+}
+
+# niri reports no absolute position for a tiled window (see strapd-wm-windows),
+# so there are no rectangles to snap to there. Say so rather than quietly hand
+# slurp monitor rects only and call it window snapping.
+require_window_rects() {
+  [[ -n $(window_rects) ]] && return 0
+
+  if [[ -n ${NIRI_SOCKET:-} ]]; then
+    echo "strapd-capture-region: niri does not place its tiled windows, so there is nothing to snap to." >&2
+    echo "Use niri's own screenshot actions, or 'region' and 'fullscreen' here." >&2
+  else
+    echo "strapd-capture-region: the compositor reported no windows to snap to." >&2
+  fi
+  exit 2
+}
+
+# slurp reads a rectangle list on stdin, so freeform mode has to hand it an
+# empty one rather than inherit this script's stdin: from a pipeline or a
+# systemd unit that is a pipe, and slurp would wait for a list never coming.
+pick() {
+  slurp "$@" 2>/dev/null
+}
+
+FREEZE_PID=""
+freeze_screen() {
+  hyprpicker -r -z >/dev/null 2>&1 &
+  FREEZE_PID=$!
+  sleep .1
+}
+
+cleanup_freeze() {
+  [[ $KEEP_FREEZE == true ]] && return
+  [[ -n $FREEZE_PID ]] && kill $FREEZE_PID 2>/dev/null
+}
+trap cleanup_freeze EXIT
+
+case "$MODE" in
+region)
+  freeze_screen
+  SELECTION=$(pick </dev/null)
+  ;;
+windows)
+  require_window_rects
+  freeze_screen
+  SELECTION=$(get_rectangles | pick -r)
+  ;;
+fullscreen)
+  SELECTION=$(focused_monitor_geo)
+  ;;
+smart | *)
+  require_window_rects
+  RECTS=$(get_rectangles)
+  freeze_screen
+  SELECTION=$(echo "$RECTS" | pick)
+
+  # A bare click (area < 20px^2) snaps to whichever rectangle it landed in, so
+  # users don't end up with accidental 2px captures. X and Y can be negative for
+  # a monitor placed left of or above the origin.
+  #
+  # The smallest containing rectangle wins, which is slurp's own rule for
+  # overlapping hints. Taking the first match instead always yields the monitor,
+  # since the list starts with them.
+  if [[ $SELECTION =~ ^(-?[0-9]+),(-?[0-9]+)[[:space:]]([0-9]+)x([0-9]+)$ ]] && ((BASH_REMATCH[3] * BASH_REMATCH[4] < 20)); then
+    click_x=${BASH_REMATCH[1]}
+    click_y=${BASH_REMATCH[2]}
+    smallest_area=0
+
+    while IFS= read -r rect; do
+      [[ $rect =~ ^(-?[0-9]+),(-?[0-9]+)[[:space:]]([0-9]+)x([0-9]+)$ ]] || continue
+      rect_x=${BASH_REMATCH[1]}
+      rect_y=${BASH_REMATCH[2]}
+      rect_width=${BASH_REMATCH[3]}
+      rect_height=${BASH_REMATCH[4]}
+
+      ((click_x >= rect_x && click_x < rect_x + rect_width && click_y >= rect_y && click_y < rect_y + rect_height)) || continue
+
+      area=$((rect_width * rect_height))
+      if ((smallest_area == 0 || area < smallest_area)); then
+        SELECTION="${rect_x},${rect_y} ${rect_width}x${rect_height}"
+        smallest_area=$area
+      fi
+    done <<<"$RECTS"
+  fi
+  ;;
+esac
+
+[[ $KEEP_FREEZE == true ]] && echo "$FREEZE_PID"
+
+[[ -n ${SELECTION:-} ]] || exit 1
+
+if [[ $MATCH_MONITOR == true ]]; then
+  monitor=$(strapd-wm-monitors 2>/dev/null |
+    jq -r --arg geo "$SELECTION" '.[] | select("\(.x),\(.y) \(.width)x\(.height)" == $geo) | .name' | head -1)
+  if [[ -n $monitor ]]; then
+    echo "monitor:$monitor"
+    exit 0
+  fi
+fi
+
+echo "$SELECTION"

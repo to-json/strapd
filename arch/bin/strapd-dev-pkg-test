@@ -1,0 +1,137 @@
+#!/bin/bash
+
+# strapd:summary=Build and install an strapd package from a local checkout
+# strapd:group=dev
+# strapd:args=[package-name] [path-to-checkout]
+# strapd:examples=strapd dev pkg-test | strapd dev pkg-test strapd-dev ~/Work/strapd/strapd-installer
+
+set -euo pipefail
+
+if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
+  cat <<USAGE
+Usage: strapd dev pkg-test [package-name] [path-to-checkout]
+
+Builds and installs an strapd package from a local strapd source
+checkout. Use when changes need to land at fixed system paths (/etc/,
+/usr/lib/systemd/, udev rule bodies, plymouth) that strapd-dev-link
+can't shadow.
+
+Defaults:
+  packages          strapd-settings-dev strapd-dev
+  path-to-checkout  ~/Work/strapd/strapd-installer
+
+Examples:
+  strapd dev pkg-test
+  strapd dev pkg-test strapd-settings-dev
+  strapd dev pkg-test strapd-dev ~/Work/strapd/strapd-installer
+
+The pkgver of the built package is tagged 'dev.<short-sha>[.dirty]' so
+'pacman -Q' makes it obvious where the installed version came from.
+
+PKGBUILDs are read from \${STRAPD_PKGBUILDS_DIR:-~/Work/strapd/strapd-pkgs/pkgbuilds}/<package-name>/.
+USAGE
+  exit 0
+fi
+
+remove_pkgver_function() {
+  local pkgbuild="$1"
+  local tmp="$pkgbuild.tmp"
+
+  awk '
+    /^pkgver\(\)[[:space:]]*\{/ {
+      in_pkgver = 1
+      depth = 0
+    }
+    in_pkgver {
+      line = $0
+      opens = gsub(/\{/, "{", line)
+      line = $0
+      closes = gsub(/\}/, "}", line)
+      depth += opens - closes
+      if (depth <= 0) {
+        in_pkgver = 0
+      }
+      next
+    }
+    { print }
+  ' "$pkgbuild" >"$tmp"
+  mv "$tmp" "$pkgbuild"
+}
+
+dev_package_name() {
+  local pkg="$1"
+
+  case "$pkg" in
+    strapd | strapd-settings)
+      printf '%s-dev\n' "$pkg"
+      ;;
+    *)
+      printf '%s\n' "$pkg"
+      ;;
+  esac
+}
+
+if (( $# == 0 )); then
+  PKGS=(strapd-settings-dev strapd-dev)
+  CHECKOUT="$HOME/Work/strapd/strapd-installer"
+  MAKEPKG_ARGS=()
+else
+  PKGS=("$(dev_package_name "$1")")
+  CHECKOUT="${2:-$HOME/Work/strapd/strapd-installer}"
+  MAKEPKG_ARGS=("${@:3}")
+fi
+PKGBUILDS_ROOT="${STRAPD_PKGBUILDS_DIR:-$HOME/Work/strapd/strapd-pkgs/pkgbuilds}"
+
+if [[ ! -d "$CHECKOUT" ]]; then
+  echo "Error: checkout not found at $CHECKOUT" >&2
+  exit 1
+fi
+for PKG in "${PKGS[@]}"; do
+  PKGBUILD_DIR="$PKGBUILDS_ROOT/$PKG"
+  if [[ ! -f "$PKGBUILD_DIR/PKGBUILD" ]]; then
+    echo "Error: PKGBUILD not found at $PKGBUILD_DIR/PKGBUILD" >&2
+    echo "       Pass a different package name as arg 1, or set STRAPD_PKGBUILDS_DIR." >&2
+    exit 1
+  fi
+done
+
+build_dir=$(mktemp -d -t strapd-dev-pkg-test.XXXXXX)
+trap 'rm -rf "$build_dir"' EXIT
+
+# pkgver=dev.<sha>[.dirty] so pacman -Q makes the source obvious.
+short_sha=$(git -C "$CHECKOUT" rev-parse --short HEAD 2>/dev/null || echo "local")
+dirty=""
+if [[ -d "$CHECKOUT/.git" ]] && [[ -n "$(git -C "$CHECKOUT" status --porcelain)" ]]; then
+  dirty=".dirty"
+fi
+new_pkgver="dev.${short_sha}${dirty}"
+
+for PKG in "${PKGS[@]}"; do
+  PKGBUILD_DIR="$PKGBUILDS_ROOT/$PKG"
+  package_build_dir="$build_dir/$PKG"
+  mkdir -p "$package_build_dir"
+  cp -a "$PKGBUILD_DIR/." "$package_build_dir/"
+
+  remove_pkgver_function "$package_build_dir/PKGBUILD"
+  sed -i "s/^pkgver=.*/pkgver=${new_pkgver}/" "$package_build_dir/PKGBUILD"
+
+  echo "Building $PKG ${new_pkgver} from $CHECKOUT"
+  echo "  build dir: $package_build_dir"
+  echo "  PKGBUILD : $PKGBUILD_DIR/PKGBUILD"
+  echo
+
+  (
+    cd "$package_build_dir"
+    STRAPD_SRC="$CHECKOUT" makepkg -s --skipchecksums --noconfirm "${MAKEPKG_ARGS[@]}"
+  )
+
+  # Installed separately so we can pass --overwrite='*', which makepkg -i
+  # cannot. Dev builds frequently conflict with files left by previous
+  # script-installed versions; the build is the authoritative state.
+  built_pkg=$(ls -t "$package_build_dir"/*.pkg.tar.* 2>/dev/null | grep -v '\.sig$' | head -1)
+  if [[ -z $built_pkg ]]; then
+    echo "Error: no built package found in $package_build_dir" >&2
+    exit 1
+  fi
+  sudo pacman -U --noconfirm --overwrite='*' "$built_pkg"
+done

@@ -1,0 +1,46 @@
+#!/bin/bash
+
+# strapd:summary=Launch the default browser as determined by xdg-settings.
+# strapd:args=[url]
+
+# BROWSER is unset for the query because strapd sets it to this script: asking
+# xdg-settings while BROWSER points here would answer "itself".
+default_browser=$(env -u BROWSER xdg-settings get default-web-browser)
+if [[ -z $default_browser ]]; then
+  default_browser=$(xdg-mime query default x-scheme-handler/https)
+fi
+browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$default_browser 2>/dev/null | head -1)
+
+if $browser_exec --help 2>/dev/null | grep -q MOZ_LOG; then
+  private_flag="--private-window"
+elif [[ $browser_exec =~ edge ]]; then
+  private_flag="--inprivate"
+else
+  private_flag="--incognito"
+fi
+
+systemd-run --user --quiet --collect --unit="strapd-browser-$(date +%s%N)" \
+  --property=StandardOutput=null --property=StandardError=null \
+  uwsm-app -- "$browser_exec" "${@/--private/$private_flag}"
+
+url=""
+for argument in "$@"; do
+  if [[ $argument != "--private" ]]; then
+    url=$argument
+    break
+  fi
+done
+
+# Opening a URL when the browser is already running hands it to the existing
+# window and the new process exits, so the tab appears on whatever workspace the
+# browser is on. Follow it. Opening a bare window lands here instead, and moving
+# the view would be wrong.
+#
+# The pattern is the browser's executable name without Arch's `-stable` suffix;
+# strapd-wm-focus-window puts word boundaries around it, which keeps `chromium`
+# off a window merely titled "chromium-flags.conf".
+#
+# Best-effort and quiet: the systemd-run above has already done the actual job.
+if [[ -n $url ]]; then
+  strapd-wm-focus-window "$(basename "$browser_exec" -stable)" >/dev/null 2>&1 || true
+fi

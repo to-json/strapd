@@ -1,0 +1,49 @@
+#!/bin/bash
+#
+# In-guest acceptance suite. Unlike test/shell, which is host-side unit testing
+# of the bash pipeline, these need a real Arch box with the compositor packages
+# installed: what they check is whether the software strapd generates
+# configuration *for* accepts that configuration.
+#
+# Run it inside the QEMU VM (see the strapd-vm repo) or on real Arch:
+#
+#   ./vmssh.sh 'cd /root/strapd && bash test/acceptance'
+
+set -euo pipefail
+
+ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+TEST_DIR="$ROOT/test/acceptance.d"
+
+export STRAPD_ACCEPTANCE_DIR="${STRAPD_ACCEPTANCE_DIR:-/tmp/strapd-acceptance}"
+mkdir -p "$STRAPD_ACCEPTANCE_DIR"
+
+shopt -s nullglob
+tests=()
+for test in "$TEST_DIR"/*-test.sh; do
+  [[ $(basename "$test") == "base-test.sh" ]] && continue
+  tests+=("$test")
+done
+shopt -u nullglob
+
+if (( ${#tests[@]} == 0 )); then
+  echo "No acceptance tests found in $TEST_DIR" >&2
+  exit 1
+fi
+
+status=0
+suite_started=$SECONDS
+for test in "${tests[@]}"; do
+  printf '==> %s\n' "${test#"$ROOT"/}"
+  if ! timeout "${STRAPD_ACCEPTANCE_TEST_TIMEOUT:-300}" bash "$test"; then
+    status=1
+  fi
+done
+
+if (( status != 0 )); then
+  printf 'not ok - acceptance suite failed in %ss (artifacts in %s)\n' \
+    "$((SECONDS - suite_started))" "$STRAPD_ACCEPTANCE_DIR" >&2
+  exit "$status"
+fi
+
+printf 'ok - acceptance suite passed in %ss (artifacts in %s)\n' \
+  "$((SECONDS - suite_started))" "$STRAPD_ACCEPTANCE_DIR"

@@ -1,0 +1,4 @@
+// What your session starts, on top of strapd's own.
+//
+// spawn-at-startup "signal-desktop" "--start-in-tray"
+// spawn-at-startup "bash" "-c" "sleep 5 && syncthing --no-browser"

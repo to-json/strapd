@@ -1,0 +1,44 @@
+#!/bin/bash
+
+# strapd:summary=Check whether strapd updates are available.
+
+set -euo pipefail
+
+updates=()
+
+if [[ $STRAPD_PATH != "/usr/share/strapd" ]]; then
+  upstream=$(git -C "$STRAPD_PATH" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)
+  if [[ -n $upstream ]]; then
+    GIT_TERMINAL_PROMPT=0 timeout 10 git -C "$STRAPD_PATH" fetch --quiet 2>/dev/null || true
+
+    behind=$(git -C "$STRAPD_PATH" rev-list --count "HEAD..$upstream" 2>/dev/null || echo 0)
+    if (( behind > 0 )); then
+      commit_label=commits
+      (( behind == 1 )) && commit_label=commit
+      updates+=("strapd-dev-checkout $behind new $commit_label on $upstream")
+    fi
+  fi
+fi
+
+package=""
+if pacman -Qq strapd-dev >/dev/null 2>&1; then
+  package=strapd-dev
+elif pacman -Qq strapd >/dev/null 2>&1; then
+  package=strapd
+fi
+
+if [[ -n $package ]]; then
+  update=$(checkupdates --nocolor 2>/dev/null | awk -v package="$package" '$1 == package { print; exit }' || true)
+fi
+
+if [[ -n ${update:-} ]]; then
+  updates+=("$update")
+fi
+
+if (( ${#updates[@]} > 0 )); then
+  printf '%s\n' "${updates[@]}"
+  exit 0
+else
+  echo "strapd is up to date"
+  exit 1
+fi

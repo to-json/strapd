@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=strapd (MangoWC)
+Comment=strapd's dwl-style tiling session, managed by uwsm
+Exec=strapd-session mango
+TryExec=mango
+Type=Application
+DesktopNames=mango;wlroots

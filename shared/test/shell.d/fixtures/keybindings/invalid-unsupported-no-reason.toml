@@ -1,0 +1,8 @@
+[[action]]
+id = "layout.toggle_split"
+category = "layout"
+description = "Toggle window split direction"
+key = "SUPER+J"
+
+  [action.niri]
+  unsupported = true

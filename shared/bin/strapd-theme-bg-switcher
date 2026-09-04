@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# strapd:summary=Open the strapd background switcher
+# strapd:group=theme
+# strapd:name=bg-switcher
+# strapd:aliases=strapd background
+
+theme_name=$(cat "$HOME/.local/state/strapd/current/theme.name" 2>/dev/null)
+current_background=$(readlink -f "$HOME/.local/state/strapd/current/background" 2>/dev/null)
+
+strapd-menu-images \
+  --selected "$current_background" \
+  "$HOME/.local/state/strapd/current/theme/backgrounds" \
+  "$HOME/.config/strapd/backgrounds/$theme_name"

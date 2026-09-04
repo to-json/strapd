@@ -1,0 +1,29 @@
+// Input. The keyboard *layout* is not here; it comes from
+// /etc/vconsole.conf via strapd-refresh-keyboard-layout, which writes a
+// fragment ~/.config/niri/config.kdl includes after this file.
+
+input {
+    keyboard {
+        // Considerably faster than niri's defaults: held keys should repeat
+        // about as quickly as the terminal does.
+        repeat-rate 40
+        repeat-delay 250
+
+        numlock
+    }
+
+    touchpad {
+        tap
+        // Two- and three-finger clicks are right- and middle-click, rather
+        // than click position deciding which button it was.
+        click-method "clickfinger"
+        // Full-speed touchpad scrolling overshoots badly in most apps.
+        scroll-factor 0.4
+    }
+
+    focus-follows-mouse
+
+    // Keep the pointer with the keyboard focus, so the next click lands where
+    // the last keystroke went.
+    warp-mouse-to-focus
+}

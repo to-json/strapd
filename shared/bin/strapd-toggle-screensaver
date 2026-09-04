@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# strapd:summary=Toggle screensaver availability
+
+strapd-toggle screensaver-off
+
+if strapd-toggle-enabled screensaver-off; then
+  strapd-notification-send -g 󱄄 "Screensaver disabled"
+else
+  strapd-notification-send -g 󱄄 "Screensaver enabled"
+fi

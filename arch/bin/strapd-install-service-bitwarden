@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# strapd:summary=Install Bitwarden and its Chromium extension.
+# strapd:requires-sudo=true
+
+set -e
+
+EXTENSION_ID="nngceckbapebfimnlniiiahkandclblb"
+EXTENSION_DIR="/usr/share/chromium/extensions"
+EXTENSION_FILE="$EXTENSION_DIR/$EXTENSION_ID.json"
+WEBSTORE_UPDATE_URL="https://clients2.google.com/service/update2/crx"
+
+install_chromium_extension() {
+  if strapd-cmd-missing chromium; then
+    echo "Chromium is not installed; skipping Bitwarden Chromium extension."
+    return
+  fi
+
+  sudo mkdir -p "$EXTENSION_DIR"
+  printf '{ "external_update_url": "%s" }\n' "$WEBSTORE_UPDATE_URL" | sudo tee "$EXTENSION_FILE" >/dev/null
+  sudo chmod 644 "$EXTENSION_FILE"
+}
+
+echo "Installing Bitwarden..."
+# bitwarden is the desktop app; bitwarden-cli provides `bw`, which
+# strapd-system-lock uses to lock the vault on screen lock.
+strapd-pkg-add bitwarden bitwarden-cli
+
+echo "Installing Bitwarden extension for Chromium..."
+install_chromium_extension
+
+echo "Opening Bitwarden..."
+uwsm-app -- bitwarden >/dev/null 2>&1 &
+
+echo ""
+echo "Bitwarden has been installed. Restart Chromium to load the browser extension."

@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# strapd:summary=Open Voxtype configuration
+
+set -e
+
+strapd-launch-floating-terminal-with-presentation "voxtype configure"
+strapd-restart-shell

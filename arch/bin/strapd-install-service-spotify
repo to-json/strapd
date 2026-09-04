@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# strapd:summary=Install Spotify.
+# strapd:requires-sudo=true
+
+set -e
+
+echo "Installing Spotify..."
+strapd-pkg-add spotify
+
+echo "Opening Spotify..."
+setsid uwsm-app -- /usr/bin/spotify >/dev/null 2>&1 &
+
+echo ""
+echo "Spotify has been installed."

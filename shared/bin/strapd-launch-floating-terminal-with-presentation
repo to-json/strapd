@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# strapd:summary=Launch a floating terminal with the strapd presentation wrapper
+# strapd:args=<command>
+
+# Export the current theme's gum styling so gum widgets match the active theme
+# even after a theme switch (the inherited environment is captured at login).
+source strapd-restart-gum
+
+cmd="$*"
+presentation_script="strapd-show-logo; $cmd; if (( \$? != 130 )); then strapd-show-done; fi"
+
+exec setsid uwsm-app -- xdg-terminal-exec --app-id=org.strapd.terminal --title=strapd -e bash -c "$presentation_script"

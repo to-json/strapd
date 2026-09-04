@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# strapd:summary=Returns true if any of the named packages are missing from the system (or false if they're all there).
+# strapd:args=<packages...>
+
+# dpkg keeps a package in its database after a plain remove (Status:
+# "deinstall ok config-files"), so a bare `dpkg -s` succeeding is not enough;
+# only the fully "install ok installed" state counts as present.
+for pkg in "$@"; do
+  if ! dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q 'install ok installed'; then
+    exit 0
+  fi
+done
+
+exit 1

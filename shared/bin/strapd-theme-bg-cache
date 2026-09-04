@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# strapd:summary=Cache background switcher thumbnails for the current theme
+
+theme_name=$(cat "$HOME/.local/state/strapd/current/theme.name" 2>/dev/null)
+
+strapd-menu-images \
+  --cache-only \
+  "$HOME/.local/state/strapd/current/theme/backgrounds" \
+  "$HOME/.config/strapd/backgrounds/$theme_name"

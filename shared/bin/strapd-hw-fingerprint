@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# strapd:summary=Returns true when a fingerprint reader is present
+# strapd:hidden=true
+
+# Straight from sysfs, so this works before fprintd/usbutils are installed.
+# Multi-purpose vendors (Elan, STMicro, which also make USB touchscreens) are
+# left out to avoid nagging laptops with no reader; those still match on the
+# product string below when present.
+fingerprint_vendors=" 27c6 138a 06cb 08ff 1c7a 147e "
+usb_devices_path="${STRAPD_USB_DEVICES_PATH:-/sys/bus/usb/devices}"
+
+# libfprint drives every reader it supports from userspace over libusb, so a
+# real reader sits there with no kernel driver bound. The other things these
+# vendors build all bind one: webcam bridges, touchpads, cameras. Only the
+# vendor-ID guess needs this; a device that names itself a reader is trusted.
+has_kernel_driver() {
+  local intf driver
+  for intf in "$1"/*:*; do
+    [[ -e $intf/driver ]] || continue
+    # usbfs is the exception: libusb claims an interface through it, so a reader
+    # fprintd is enrolling against binds a driver for as long as it holds the
+    # claim. That is userspace driving the device, not a kernel driver.
+    driver=$(readlink -f "$intf/driver")
+    [[ ${driver##*/} == "usbfs" ]] || return 0
+  done
+  return 1
+}
+
+for dev in "$usb_devices_path"/*; do
+  # The device's own product descriptor usually names it, e.g. "Goodix
+  # Fingerprint USB Device", which is driver-independent and vendor-agnostic.
+  if [[ -r $dev/product ]]; then
+    product=$(<"$dev/product")
+    product=${product,,}
+    # Elan's match-on-chip readers report "ELAN:ARM-M4" and Fingerprint Cards'
+    # report "FPC ..." -- the family or the manufacturer rather than the
+    # function. Both vendors are off the list above on purpose, so without these
+    # they match nothing. FPC leads the string on every reader on record, and
+    # three letters are little to match on, so require the prefix.
+    [[ $product == *fingerprint* || $product == *biometric* || $product == *elan:arm-m4* || $product == "fpc "* ]] && exit 0
+  fi
+
+  if [[ -r $dev/idVendor ]]; then
+    vendor=$(<"$dev/idVendor")
+    [[ $fingerprint_vendors == *" $vendor "* ]] &&
+      ! has_kernel_driver "$dev" && exit 0
+  fi
+done
+
+exit 1

@@ -1,0 +1,20 @@
+// Your look and feel. strapd's are in
+// /usr/share/strapd/default/niri/looknfeel.kdl.
+//
+// layout {
+//     gaps 4
+//
+//     focus-ring {
+//         width 4
+//     }
+// }
+//
+// Bring back window shadows, which strapd leaves off:
+//
+// layout {
+//     shadow {
+//         on
+//         softness 30
+//         spread 5
+//     }
+// }

@@ -1,0 +1,110 @@
+#!/bin/bash
+
+# strapd:summary=Launch the default coding agent in a terminal
+# strapd:args=[--inline] [--pick]
+# strapd:examples=strapd agent | strapd agent --inline
+
+inline=false
+pick=false
+
+# Flags only. A bare prompt would shadow the subcommands under this group, so
+# prompts go through strapd-agent-prompt, which passes one here as --prompt.
+while (($#)); do
+  case "$1" in
+    --inline)
+      inline=true
+      shift
+      ;;
+    --pick)
+      pick=true
+      shift
+      ;;
+    --prompt)
+      prompt=${2:?--prompt needs a value}
+      shift 2
+      ;;
+    *)
+      echo "Unexpected argument: $1" >&2
+      echo "To pass a prompt: strapd agent prompt \"$*\"" >&2
+      exit 1
+      ;;
+  esac
+done
+
+# Agents refuse to remember trust for $HOME, so launches from the keybinding or
+# menu start in the work directory instead of re-asking every session.
+[[ $PWD == "$HOME" && -d $HOME/Work ]] && cd "$HOME/Work"
+
+agent=$(strapd-default-agent)
+
+# strapd ships without a default, so there is nothing to launch until one is
+# picked. --pick offers the choice instead of the error: a keypress that opens
+# nothing explains nothing.
+if [[ -z $agent ]]; then
+  [[ $pick == "true" ]] && exec strapd-menu summon setup.default.agent
+  echo "Choose default agent with: strapd default agent <name>" >&2
+  exit 1
+fi
+
+if strapd-cmd-missing "$agent"; then
+  echo "$agent is not installed. Choose an installed agent with: strapd default agent <name>" >&2
+  exit 1
+fi
+
+# Agents launched from the keybinding or menu run unattended, so each one starts
+# with its own spelling of "don't stop to ask". Pi and Ori have none to skip.
+case "$agent" in
+opencode)
+  command=(opencode --auto)
+  [[ -n ${prompt:-} ]] && command+=(--prompt "$prompt")
+  ;;
+agy)
+  command=(agy --dangerously-skip-permissions)
+  [[ -n ${prompt:-} ]] && command+=(--prompt-interactive "$prompt")
+  ;;
+copilot)
+  command=(copilot --allow-all)
+  [[ -n ${prompt:-} ]] && command+=(--interactive "$prompt")
+  ;;
+crush)
+  # --yolo belongs to the interactive command only; `crush run` never prompts.
+  if [[ -n ${prompt:-} ]]; then
+    command=(crush run "$prompt")
+  else
+    command=(crush --yolo)
+  fi
+  ;;
+claude)
+  command=(claude --permission-mode auto)
+  [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
+  ;;
+codex)
+  command=(codex --approve-for-me)
+  [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
+  ;;
+omp)
+  command=(omp --auto-approve)
+  [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
+  ;;
+ori)
+  # Ori is a harness launcher, and `ori code` is the agent it runs itself.
+  command=(ori code)
+  [[ -n ${prompt:-} ]] && command+=(--prompt "$prompt")
+  ;;
+pi)
+  command=(pi)
+  [[ -n ${prompt:-} ]] && command+=("$prompt")
+  ;;
+*)
+  echo "Unsupported default agent: $agent" >&2
+  exit 1
+  ;;
+esac
+
+if [[ $inline == "true" ]]; then
+  exec "${command[@]}"
+else
+  # A fixed app-id rather than the default org.strapd.<binary>, so every agent
+  # window shares one class for window rules and themes to single out.
+  exec strapd-launch-tui --app-id=org.strapd.agent "${command[@]}"
+fi

@@ -1,0 +1,11 @@
+[Trigger]
+Operation = Upgrade
+Type = Package
+Target = *
+
+[Action]
+Description = Checking strapd update entrypoint...
+When = PreTransaction
+Depends = strapd
+Exec = /usr/bin/strapd-update-pacman-guard
+AbortOnFail

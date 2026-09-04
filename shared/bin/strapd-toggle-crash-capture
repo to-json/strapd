@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# strapd:summary=Toggle crash capture notifications
+
+# nf-md-robot_dead, escaped so this file reads without a Nerd Font.
+readonly CRASH_GLYPH=$'\U000f16a1'
+
+strapd-toggle crash-capture-off
+
+# The unit checks the same flag with ConditionPathExists, so stopping and
+# starting only settles this session; the next login reads the flag itself.
+if strapd-toggle-enabled crash-capture-off; then
+  systemctl --user stop strapd-crash-watch.service
+  strapd-notification-send -g "$CRASH_GLYPH" "Crash capture disabled"
+else
+  systemctl --user start strapd-crash-watch.service
+  strapd-notification-send -g "$CRASH_GLYPH" "Crash capture enabled"
+fi

@@ -1,0 +1,89 @@
+#!/bin/bash
+
+# strapd:summary=Lock the computer
+# strapd:group=system
+# strapd:name=lock
+# strapd:examples=strapd system lock
+
+# ext-session-lock-v1 is fail-secure: if the locking client dies without
+# unlocking, the compositor stays locked. Nothing here ever clears a lock by
+# killing the locker.
+#
+# swaylock's --daemonize is not used: it forks but the parent stays alive still
+# holding the caller's stdout, so `strapd system lock` would never return.
+
+strapd-cmd-present swaylock || {
+  echo "strapd-system-lock: swaylock is not installed" >&2
+  exit 2
+}
+
+# Asking twice is not an error; a held key repeats.
+if pgrep -x swaylock >/dev/null; then
+  exit 0
+fi
+
+# swaylock takes colors as RRGGBB with no leading hash. The fallbacks are only
+# reached before a theme has ever been applied.
+theme_color() {
+  strapd-theme-color "$1" "$2" 2>/dev/null | tr -d '#'
+}
+
+background=$(theme_color background 2d353b)
+foreground=$(theme_color foreground d3c6aa)
+accent=$(theme_color accent 7fbbb3)
+muted=$(theme_color muted 475258)
+urgent=$(theme_color urgent e67e80)
+
+args=(
+  # A stray Enter should not count as a failed attempt and flash the screen red.
+  --ignore-empty-password
+  --color "$background"
+  --inside-color "$background"
+  --inside-clear-color "$background"
+  --inside-ver-color "$background"
+  --inside-wrong-color "$background"
+  --line-color "$background"
+  --line-clear-color "$background"
+  --line-ver-color "$background"
+  --line-wrong-color "$background"
+  --separator-color "$background"
+  --ring-color "$muted"
+  --ring-clear-color "$accent"
+  --ring-ver-color "$accent"
+  --ring-wrong-color "$urgent"
+  --key-hl-color "$accent"
+  --bs-hl-color "$urgent"
+  --text-color "$foreground"
+  --text-clear-color "$foreground"
+  --text-ver-color "$foreground"
+  --text-wrong-color "$foreground"
+)
+
+unlock_image="$HOME/.local/state/strapd/current/theme/unlock.png"
+if [[ -f $unlock_image ]]; then
+  args+=(--image "$unlock_image" --scaling fill)
+fi
+
+# Best effort: the desktop app has no lock-on-command flag, so this drives the
+# CLI, which only takes hold once a `bw` session exists. timeout guards against
+# a hung CLI holding the flock.
+if strapd-cmd-present bw; then
+  (
+    flock -n 9 || exit 0
+    timeout --kill-after=1s 3s bw lock >/dev/null 2>&1 || true
+  ) 9>"${XDG_RUNTIME_DIR:-/tmp}/strapd-bitwarden-lock.lock" &
+fi
+
+setsid swaylock "${args[@]}" </dev/null >/dev/null 2>&1 &
+
+for _ in $(seq 1 20); do
+  pgrep -x swaylock >/dev/null && break
+  sleep 0.1
+done
+
+sleep 0.3
+
+if ! pgrep -x swaylock >/dev/null; then
+  echo "strapd-system-lock: the compositor did not grant the lock" >&2
+  exit 1
+fi

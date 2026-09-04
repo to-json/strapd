@@ -1,0 +1,98 @@
+# Commands that exist only on the Arch layer. One shell glob per line,
+# matched against basenames in bin/; matching files are deleted from the
+# package. The dispatcher discovers commands by scanning bin/, so deletion
+# removes the command everywhere it could surface: dispatch, help, completion.
+
+# pacman/AUR package management, on NixOS you edit your flake instead.
+strapd-pkg-*
+strapd-reinstall
+strapd-reinstall-pkgs
+
+# The update machinery drives pacman, keyrings, mirrors and firmware. The
+# whole family goes, including its stay-awake/time helpers: nothing outside
+# the family references them.
+strapd-update*
+strapd-channel-*
+strapd-version-pkgs
+strapd-version-channel
+
+# Btrfs/snapper snapshots, NixOS generations own rollback.
+strapd-snapshot
+
+# On-demand installers (yay/pacman). strapd-installed-* are presence checks
+# and stay.
+strapd-install-*
+
+# Arch boot stack: pacman config, limine, plymouth theme management. The
+# hw group stays: bin/strapd-hw-* are runtime detectors (lid state, DMI
+# match, render nodes); the quirk installers live in install/hardware/,
+# which is never packaged.
+strapd-refresh-pacman
+strapd-refresh-limine
+strapd-refresh-plymouth
+strapd-plymouth-*
+
+# One-shot provisioning that pacman-installs and rewrites /etc or the ESP.
+strapd-apply-system
+strapd-apply-hardware
+strapd-setup-security-fingerprint
+strapd-system-factory-reset
+strapd-system-factory-reset-finish
+strapd-hibernation-setup
+strapd-hibernation-remove
+
+# Calls strapd-refresh-limine unconditionally; a NixOS-safe config reset can
+# come back later if wanted.
+strapd-reinstall-configs
+
+# Builds and installs an Arch package.
+strapd-dev-pkg-test
+
+# First-login provisioning orchestrators. Both drive the install/ tree (unit
+# enablement, mise tool installs, chromium native-messaging via the excluded
+# strapd-install-*, hardware quirks, theme render). install/ is Arch install
+# machinery this layer deletes wholesale. The NixOS layer does the
+# genuinely-neutral pieces declaratively instead: the systemd user units via
+# systemd.user.services in nixosModules.strapd, the default theme render via
+# home.activation in homeManagerModules.strapd. The seeded compositor autostart
+# lines that spawned strapd-provision-first-run are pruned in the derivation
+# below so nothing is left calling a command that is gone.
+strapd-provision-first-run
+strapd-provision-user
+
+# Imperative package removal, the inverse of the dropped install UX. Each
+# drives strapd-pkg-drop; on NixOS you remove a package by editing your flake.
+# (strapd-remove-launcher-entry stays: it deletes a .desktop entry, not a
+# package. remove-security-{sshd,sudoless-docker} go too, paired with their
+# setup halves in the next block, they toggle system config, not packages,
+# but NixOS still owns that config declaratively.)
+strapd-remove-ai-*
+strapd-remove-gaming-*
+strapd-remove-service-*
+strapd-remove-browser
+strapd-remove-dev-env
+strapd-remove-security-fido2
+strapd-remove-security-fingerprint
+
+# Setup/teardown commands that mutate system config NixOS owns declaratively.
+# On NixOS these are services.* / users.users.*.extraGroups in your flake, and
+# an imperative change here would silently revert on the next rebuild:
+#   fido2/sshd:      services.openssh, security.pam u2f, the firewall
+#   sudoless-docker: users.users.<you>.extraGroups = [ "docker" ]
+# (strapd-remove-launcher-entry stays, it removes a .desktop entry, not
+# system config; strapd-sudo-docker stays as a presence-check helper.)
+strapd-setup-security-fido2
+strapd-setup-security-sshd
+strapd-setup-security-sudoless-docker
+strapd-remove-security-sshd
+strapd-remove-security-sudoless-docker
+
+# Arch UKI/EFI direct-boot setup (/boot/EFI/Linux). NixOS owns the boot path.
+strapd-setup-direct-boot
+
+# Chromium native-messaging install refresh, Arch install-time plumbing that
+# calls the excluded strapd-install-chromium-*.
+strapd-refresh-chromium
+
+# Builds and installs an AUR dev helper (ydoo).
+strapd-dev-install-ydoo

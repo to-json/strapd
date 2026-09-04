@@ -1,0 +1,70 @@
+#!/bin/bash
+
+# strapd:summary=Remove a supported browser and clean up strapd browser defaults
+# strapd:args=<chrome|brave|brave-origin|edge|firefox|zen>
+# strapd:examples=strapd remove browser firefox | strapd remove browser brave
+# strapd:requires-sudo=true
+
+set_fallback_default_browser() {
+  local current_browser
+  current_browser=$(env -u BROWSER xdg-settings get default-web-browser)
+
+  if [[ $current_browser != $1 ]]; then
+    return
+  fi
+
+  if strapd-cmd-present chromium; then
+    env -u BROWSER xdg-settings set default-web-browser chromium.desktop || true
+  fi
+}
+
+case $1 in
+chrome)
+  echo "Removing Chrome..."
+  set_fallback_default_browser google-chrome.desktop
+  strapd-pkg-drop google-chrome
+  rm -f ~/.config/chrome-flags.conf
+  sudo rm -f /etc/opt/chrome/policies/managed/color.json
+  ;;
+edge)
+  echo "Removing Edge..."
+  set_fallback_default_browser microsoft-edge.desktop
+  strapd-pkg-drop microsoft-edge-stable-bin
+  rm -f ~/.config/microsoft-edge-stable-flags.conf
+  sudo rm -f /etc/opt/edge/policies/managed/color.json
+  ;;
+brave)
+  echo "Removing Brave..."
+  set_fallback_default_browser brave-browser.desktop
+  strapd-pkg-drop brave-bin
+  rm -f ~/.config/brave-flags.conf
+
+  if strapd-pkg-missing brave-origin-bin; then
+    sudo rm -rf /etc/brave
+  fi
+  ;;
+brave-origin)
+  echo "Removing Brave Origin..."
+  set_fallback_default_browser brave-origin.desktop
+  strapd-pkg-drop brave-origin-bin
+  rm -f ~/.config/brave-origin-flags.conf
+
+  if strapd-pkg-missing brave-bin; then
+    sudo rm -rf /etc/brave
+  fi
+  ;;
+firefox)
+  echo "Removing Firefox..."
+  set_fallback_default_browser firefox.desktop
+  strapd-pkg-drop firefox
+  ;;
+zen)
+  echo "Removing Zen..."
+  set_fallback_default_browser zen.desktop
+  strapd-pkg-drop zen-browser-bin
+  ;;
+*)
+  echo "Usage: strapd-remove-browser <chrome|brave|brave-origin|edge|firefox|zen>"
+  exit 1
+  ;;
+esac

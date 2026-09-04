@@ -1,0 +1,105 @@
+#!/bin/bash
+
+# strapd:summary=Show the keybindings for the running compositor in a searchable menu
+# strapd:group=menu
+# strapd:name=keybindings
+# strapd:args=[--print|-p] [--backend <niri|sway|mango>]
+# strapd:examples=strapd menu keybindings | strapd menu keybindings --print
+
+# keybindings/actions.toml is the table the compositor configs are generated
+# *from*, so this reads that file through the same two library functions the
+# generator uses rather than asking a compositor what it has bound. The
+# compositor is asked one question -- which one is running -- and that only
+# decides which actions are bound at all.
+#
+# Actions the running compositor cannot do are left out rather than shown as
+# unavailable: a row you cannot press is not an answer to "what can I press".
+#
+# Selecting a row does not run it. actions.toml holds the *config* spelling of
+# each binding, and turning those into the IPC spelling would take a translation
+# layer per compositor that does not exist.
+
+set -uo pipefail
+
+STRAPD_PATH="${STRAPD_PATH:-/usr/share/strapd}"
+LIB_DIR="$STRAPD_PATH/keybindings/lib"
+ACTIONS="$STRAPD_PATH/keybindings/actions.toml"
+
+usage() {
+  echo "usage: strapd-menu-keybindings [--print|-p] [--backend <niri|sway|mango>]" >&2
+}
+
+print_only=false
+backend=""
+
+while (( $# > 0 )); do
+  case "$1" in
+    --print|-p) print_only=true ;;
+    --backend)
+      shift
+      (( $# > 0 )) || { usage; exit 1; }
+      backend="$1"
+      ;;
+    -h|--help) usage; exit 0 ;;
+    *) usage; exit 1 ;;
+  esac
+  shift
+done
+
+if [[ -z $backend ]]; then
+  if [[ -n ${NIRI_SOCKET:-} ]]; then
+    backend=niri
+  elif [[ -n ${SWAYSOCK:-} ]]; then
+    backend=sway
+  elif [[ -n ${MANGO_INSTANCE_SIGNATURE:-} ]]; then
+    backend=mango
+  else
+    echo "strapd-menu-keybindings: no niri, sway or mango session to show bindings for" >&2
+    exit 2
+  fi
+fi
+
+case "$backend" in
+  niri|sway|mango) ;;
+  *) usage; exit 1 ;;
+esac
+
+[[ -f $ACTIONS ]] || {
+  echo "strapd-menu-keybindings: no keybinding table at $ACTIONS" >&2
+  exit 2
+}
+
+source "$LIB_DIR/toml-read.sh"
+source "$LIB_DIR/repeat-expand.sh"
+
+rows() {
+  local json
+
+  json=$(toml_to_json "$ACTIONS") || return 1
+  json=$(expand_repeats "$json") || return 1
+
+  # The column every chord is padded to, so the arrows line up down the page.
+  jq -r --arg backend "$backend" '
+    .action[]
+    | select(.[$backend].dispatch != null)
+    | "\(.key | gsub("\\+"; " + "))\t\(.description)"
+  ' <<<"$json" |
+    awk -F'\t' '{ printf "%-28s → %s\n", $1, $2 }'
+}
+
+table=$(rows) || {
+  echo "strapd-menu-keybindings: could not read $ACTIONS" >&2
+  exit 1
+}
+
+[[ -n $table ]] || {
+  echo "strapd-menu-keybindings: no bindings for $backend" >&2
+  exit 1
+}
+
+if [[ $print_only == true ]]; then
+  printf '%s\n' "$table"
+  exit 0
+fi
+
+printf '%s\n' "$table" | strapd-menu-select 'Keybindings' -- --width 800 --height 500 >/dev/null

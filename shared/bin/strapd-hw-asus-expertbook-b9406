@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# strapd:summary=Detect ASUS ExpertBook B9406 series laptops on Intel Panther Lake.
+
+strapd-hw-match "B9406" && strapd-hw-intel-ptl

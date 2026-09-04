@@ -1,0 +1,46 @@
+# strapd's menu, as data.
+#
+# Format: <id>TAB<label>TAB<action>
+#
+# The id is dotted and the dots are the tree: "apps.terminal" is a row under
+# "apps", and "apps" is a row on the root menu. A row with no action is a
+# submenu; a row with one runs it with `bash -c`, so a pipeline is allowed and
+# two of them are one.
+#
+# Ids are also the routes `strapd menu summon <route>` takes, which is why
+# `apps` and `system` are spelled the way keybindings/actions.toml spells them.
+#
+# There are no icons here. Picking glyphs is the same UX-tier decision as
+# picking the rows, and neither is settled.
+#
+# Labels have to be unique within one submenu: the menu returns the label of
+# the row that was picked, and test/shell.d/menu-test.sh fails on a collision.
+
+apps	Apps
+apps.terminal	Terminal	strapd-launch-terminal
+apps.browser	Browser	strapd-launch-browser
+apps.editor	Editor	strapd-launch-editor
+apps.files	Files	strapd-launch-file-manager
+
+style	Style
+style.theme	Theme	strapd-theme-list | strapd-menu-select Theme | xargs -r -d '\n' strapd-theme-set
+style.font	Font	strapd-font-list | strapd-menu-select Font | xargs -r -d '\n' strapd-font-set
+style.background	Next background	strapd-theme-bg-next
+
+capture	Capture
+capture.region	Screenshot a region	strapd-capture-screenshot region
+capture.window	Screenshot a window	strapd-capture-screenshot windows
+capture.screen	Screenshot the screen	strapd-capture-screenshot fullscreen
+capture.colour	Pick a colour	strapd-color-picker
+
+audio	Audio
+audio.output	Switch output	strapd-audio-output-switch
+audio.mute	Mute or unmute	strapd-audio-output-volume mute-toggle
+
+system	System
+system.lock	Lock	strapd-system-lock
+system.suspend	Suspend	systemctl suspend
+system.restart	Restart	strapd-system-reboot
+system.shutdown	Shut down	strapd-system-shutdown
+
+update	Update	strapd-update

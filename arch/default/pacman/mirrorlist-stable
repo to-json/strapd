@@ -1,0 +1,8 @@
+# strapd has no mirror infrastructure, so every channel points at Arch's own
+# geo-routed mirror. Upstream pinned one frozen snapshot per channel here, which
+# is what made stable/rc/edge mean anything; without that the three files are
+# identical and the channel a user is "on" only changes which pacman.conf they
+# get. Phase 8 owns standing up real channels on bootstrapd.org; until then
+# this at least resolves, which upstream's host renamed to ours did not.
+
+Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch

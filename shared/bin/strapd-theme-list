@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# strapd:summary=List available themes
+# strapd:examples=strapd theme list | strapd theme set "Tokyo Night"
+
+{
+  find ~/.config/strapd/themes/ -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -printf '%f\n'
+  find "$STRAPD_PATH/themes/" -mindepth 1 -maxdepth 1 -type d -printf '%f\n'
+} | sort -u | sed -E 's/(^|-)([a-z])/\1\u\2/g; s/-/ /g'

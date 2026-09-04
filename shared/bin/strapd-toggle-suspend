@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# strapd:summary=Toggle suspend availability in the system menu
+
+strapd-toggle suspend-off
+
+if strapd-toggle-enabled suspend-off; then
+  strapd-notification-send -g 󰒲 "Suspend removed from system menu"
+else
+  strapd-notification-send -g 󰒲 "Suspend now available in system menu"
+fi

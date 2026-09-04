@@ -1,0 +1,75 @@
+#!/bin/bash
+
+# strapd:summary=Draw the current background on the session
+# strapd:group=theme
+# strapd:name=bg apply
+# strapd:hidden=true
+
+# strapd-theme-set and strapd-theme-bg-set decide *which* image is current and
+# point a symlink at it; this is what draws it. swaybg is a layer-shell client,
+# so one command covers all three compositors.
+#
+# It does not `pkill swaybg`. Sway starts one of its own for the `output * bg`
+# line in its looknfeel, and killing that would take the solid colour with it,
+# so this tracks only the process it started. The two coexist by design: the
+# colour is what shows through when there is no image to draw.
+
+set -uo pipefail
+
+background="$HOME/.local/state/strapd/current/background"
+pidfile="${XDG_RUNTIME_DIR:-/tmp}/strapd-background.pid"
+
+# No session to draw on. The autostart calls this before anything else might,
+# so it has to be a quiet no-op rather than an error when run from a shell.
+[[ -n ${WAYLAND_DISPLAY:-} ]] || exit 0
+
+noctalia_socket="${XDG_RUNTIME_DIR:-/run/user/$UID}/noctalia-${WAYLAND_DISPLAY}.sock"
+
+shell_is_drawing() {
+  [[ -S $noctalia_socket ]] && strapd-cmd-present noctalia
+}
+
+if ! shell_is_drawing; then
+  strapd-cmd-present swaybg || {
+    echo "strapd-theme-bg-apply: no shell running and swaybg is not installed" >&2
+    exit 2
+  }
+fi
+
+stop_previous() {
+  local previous
+
+  [[ -f $pidfile ]] || return 0
+  read -r previous <"$pidfile" || return 0
+  rm -f "$pidfile"
+
+  [[ $previous =~ ^[0-9]+$ ]] || return 0
+  # Only if it is still the swaybg this started: a pid file outlives a reboot
+  # and the number gets handed to somebody else. The whole command line rather
+  # than the process name, because a stub standing in for swaybg is a shell
+  # script and the kernel reports its name as bash.
+  [[ $(ps -o args= -p "$previous" 2>/dev/null) == *swaybg* ]] || return 0
+  kill "$previous" 2>/dev/null
+}
+
+# A theme has never been applied, or ships no wallpaper. Leaving the previous
+# one up would show the last theme's image under the new theme's colours.
+if [[ ! -e $background ]]; then
+  stop_previous
+  exit 0
+fi
+
+stop_previous
+
+# Hand it to the shell if the shell is there. It persists the choice per
+# monitor, so this is also what makes the wallpaper survive a restart of it.
+if shell_is_drawing; then
+  noctalia msg wallpaper-set "$(readlink -f "$background")" >/dev/null 2>&1
+  exit 0
+fi
+
+# `fill` rather than `stretch`: cropped beats the wrong aspect ratio, and it is
+# what every theme's images are cut for.
+swaybg --mode fill --image "$(readlink -f "$background")" >/dev/null 2>&1 &
+printf '%s\n' "$!" >"$pidfile"
+disown

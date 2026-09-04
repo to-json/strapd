@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# strapd:summary=Reset shell.json to strapd defaults
+# strapd:examples=strapd refresh shell
+
+set -euo pipefail
+
+strapd-refresh-config strapd/shell.json
+strapd-bar defaults
+
+strapd-restart-shell

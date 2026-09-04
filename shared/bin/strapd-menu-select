@@ -1,0 +1,149 @@
+#!/bin/bash
+
+# strapd:summary=Pick one option from a menu
+# strapd:group=menu
+# strapd:name=select
+# strapd:args=prompt [option...] [-- menu args...]
+# strapd:examples=strapd menu select Format jpg png|strapd-menu-select Resolution 4k 1080p 720p, --width 400
+
+# An option may lead with an icon, as "<glyph><TAB><label>", and may trail a
+# subtext shown under the label, as "<glyph><TAB><label><TAB><subtext>". The
+# menu shows the glyph but never returns it. A plain option returns the label
+# alone; an option with a subtext returns "<label><TAB><subtext>", so callers
+# with same-named rows get the subtext back as the stable key.
+#
+# Every menu in this tree asks this one command and none of them knows what
+# draws it, so swapping fuzzel out is an edit to this file alone.
+#
+# The selection comes back by index rather than by text: the displayed line is
+# not the answer (the glyph is stripped, a subtext joined) and two rows are
+# allowed to share a label.
+
+set -uo pipefail
+
+if (( $# < 1 )); then
+  echo "Usage: strapd-menu-select <prompt> [option...] [-- menu args...]" >&2
+  exit 1
+fi
+
+prompt="$1"
+shift
+
+options=()
+menu_width=""
+menu_maxheight=""
+
+while (( $# > 0 )); do
+  if [[ $1 == "--" ]]; then
+    shift
+    while (( $# > 0 )); do
+      case "$1" in
+        --width)
+          shift
+          if (( $# == 0 )); then
+            echo "strapd-menu-select: --width requires a value" >&2
+            exit 1
+          fi
+          menu_width="$1"
+          ;;
+        --height|--maxheight)
+          arg="$1"
+          shift
+          if (( $# == 0 )); then
+            echo "strapd-menu-select: $arg requires a value" >&2
+            exit 1
+          fi
+          menu_maxheight="$1"
+          ;;
+      esac
+      shift
+    done
+    break
+  fi
+
+  options+=("$1")
+  shift
+done
+
+if (( ${#options[@]} == 0 )) && [[ ! -t 0 ]]; then
+  mapfile -t options
+fi
+
+if (( ${#options[@]} == 0 )); then
+  echo "Usage: strapd-menu-select <prompt> [option...] [-- menu args...]" >&2
+  exit 1
+fi
+
+strapd-cmd-present fuzzel || {
+  echo "strapd-menu-select: no menu to draw with (fuzzel is not installed)" >&2
+  exit 2
+}
+
+# What the user sees and what the caller gets back are two different strings
+# per row, so the index fuzzel returns indexes both.
+display=()
+result=()
+
+for option in "${options[@]}"; do
+  glyph=""
+  subtext=""
+
+  # Split on tabs by hand. `IFS=$'\t' read -r glyph label subtext` is quietly
+  # wrong: tab is IFS *whitespace*, so a run of tabs collapses into one
+  # delimiter and a leading tab is stripped. "<TAB>Terminal<TAB>alacritty", a
+  # row a caller is allowed to write, would then return the subtext as the
+  # answer. Parameter expansion keeps empty fields empty.
+  if [[ $option != *$'\t'* ]]; then
+    label=$option
+  else
+    glyph=${option%%$'\t'*}
+    rest=${option#*$'\t'}
+
+    if [[ $rest != *$'\t'* ]]; then
+      label=$rest
+    else
+      label=${rest%%$'\t'*}
+      subtext=${rest#*$'\t'}
+    fi
+  fi
+
+  line=$label
+  [[ -n $glyph ]] && line="$glyph $label"
+  # fuzzel has one line per row, so the disambiguator goes on the label's line.
+  [[ -n $subtext ]] && line="$line — $subtext"
+
+  display+=("$line")
+
+  if [[ -n $subtext ]]; then
+    result+=("$label"$'\t'"$subtext")
+  else
+    result+=("$label")
+  fi
+done
+
+# Callers size the menu in pixels; fuzzel sizes in characters and rows. These
+# two divisors are the conversion, deliberately rough.
+menu_args=(--dmenu --index --prompt "$prompt ")
+
+if [[ -n $menu_width ]]; then
+  columns=$((menu_width / 8))
+  (( columns < 20 )) && columns=20
+  (( columns > 200 )) && columns=200
+  menu_args+=(--width "$columns")
+fi
+
+if [[ -n $menu_maxheight ]]; then
+  rows=$((menu_maxheight / 24))
+  (( rows < 3 )) && rows=3
+  (( rows > 40 )) && rows=40
+  menu_args+=(--lines "$rows" --minimal-lines)
+fi
+
+index=$(printf '%s\n' "${display[@]}" | fuzzel "${menu_args[@]}" 2>/dev/null)
+
+# Dismissed rather than chosen: fuzzel prints nothing, and every caller treats
+# that as "do nothing".
+[[ $index =~ ^[0-9]+$ ]] || exit 1
+(( index < ${#result[@]} )) || exit 1
+
+printf '%s\n' "${result[$index]}"

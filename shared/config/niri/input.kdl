@@ -1,0 +1,24 @@
+// Your input settings. strapd's are in
+// /usr/share/strapd/default/niri/input.kdl; anything you set here replaces
+// the same setting there.
+//
+// The keyboard layout does not belong in this file; it comes from
+// /etc/vconsole.conf, so change it with `localectl set-x11-keymap`, which
+// keeps the console, the LUKS prompt and every compositor agreeing.
+//
+// input {
+//     touchpad {
+//         natural-scroll
+//         scroll-factor 0.8
+//     }
+//
+//     mouse {
+//         accel-profile "flat"
+//     }
+// }
+//
+// Undo one of strapd's: focus follows the mouse by default.
+//
+// input {
+//     focus-follows-mouse off
+// }

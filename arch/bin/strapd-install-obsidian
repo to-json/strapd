@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# strapd:summary=Install Obsidian, the proprietary notes app, and launch it.
+# strapd:requires-sudo=true
+
+set -e
+
+echo "Installing Obsidian..."
+strapd-pkg-add obsidian
+
+# The Arch package's wrapper reads this; config/ cannot hold it because that
+# tree is seeded into every user's home whether or not Obsidian is installed.
+mkdir -p "$HOME/.config/obsidian"
+install -m 644 "$STRAPD_PATH/default/obsidian/user-flags.conf" \
+  "$HOME/.config/obsidian/user-flags.conf"
+
+# A reinstall over existing vaults gets the current theme now. A first install
+# has no vaults yet, so this does nothing and strapd-theme-set picks them up on
+# the next theme change.
+strapd-theme-set-obsidian || true
+
+echo "Opening Obsidian..."
+setsid uwsm-app -- /usr/bin/obsidian >/dev/null 2>&1 &
+
+echo ""
+echo "Obsidian has been installed."

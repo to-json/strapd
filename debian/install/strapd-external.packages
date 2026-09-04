@@ -1,0 +1,61 @@
+# Packages strapd needs that Debian 13 (trixie) does not carry, kept apart from
+# strapd-base.packages because none of them install with a plain `apt-get`;
+# each is a build-from-source or an out-of-archive artifact. This is the Debian
+# analogue of arch/install/strapd-aur.packages, and like it this file is a list
+# of what needs building, not something install.sh can act on yet: where these
+# come from on Debian, a private apt repo, a build step in an install medium,
+# or a first-boot pass, is D2's call.
+#
+# Format: `name<TAB>source` where source names the realistic route. Comments and
+# blank lines are ignored.
+#
+# REQUIRED for any working session, even the sway one that installs from the
+# base list: strapd-session execs `uwsm start`, so without uwsm no compositor
+# comes up at all. Pick uwsm plus at least one compositor.
+
+# --- the session launcher (load-bearing) ---
+# uwsm is built automatically by install/config/build-uwsm.sh (it is required
+# for any session); this entry documents the source. Runtime deps python3-xdg
+# and python3-dbus are in strapd-base.packages.
+uwsm			build-from-src	https://github.com/Vladimir-csp/uwsm
+
+# --- compositors (need at least one; sway is in the base list already) ---
+niri			build-from-src	https://github.com/YaLTeR/niri (cargo)
+mango			build-from-src	https://github.com/DreamMaoMao/mango (wlroots)
+
+# --- niri's X11 bridge (niri has no built-in XWayland) ---
+xwayland-satellite	build-from-src	https://github.com/Supreeeme/xwayland-satellite (cargo)
+
+# --- the bar/shell and what it is built on ---
+quickshell		build-from-src	https://github.com/outfoxxed/quickshell
+noctalia		build-from-src	quickshell config; depends on quickshell
+
+# --- screen tooling ---
+hyprpicker		build-from-src	https://github.com/hyprwm/hyprpicker
+gpu-screen-recorder	flatpak		com.dec05eba.gpu_screen_recorder
+
+# --- CLI tools trixie does not package ---
+go-yq			binary		https://github.com/mikefarah/yq (Debian `yq` is the unrelated python wrapper)
+mise			apt-repo	https://mise.jdx.dev (brings `usage`)
+dua-cli			binary		cargo install dua-cli
+lazydocker		binary		https://github.com/jesseduffield/lazydocker
+dotnet-runtime		apt-repo	https://packages.microsoft.com (dotnet-runtime-8.0)
+
+# --- apps (flatpak or upstream .deb) ---
+localsend		flatpak		org.localsend.localsend_app
+pinta			flatpak		com.github.PintaProject.Pinta
+moonlight-qt		flatpak		com.moonlight_stream.Moonlight
+
+# --- opt-in apps, not part of the default desktop ---
+# Obsidian is proprietary and no longer installed by default. On Arch it is
+# `strapd install obsidian`, which pulls the package at that point; Debian has
+# no installer catalog yet, so this stays listed as where the app comes from
+# when one exists, not as something the install has to source up front.
+obsidian		flatpak		md.obsidian.Obsidian
+
+# --- firewall helper ---
+ufw-docker		script		https://github.com/chaifeng/ufw-docker
+
+# --- hardware-conditional (only on matching machines) ---
+asusctl			build-from-src	https://github.com/flukejones/asusctl (ASUS only)
+qmk-hid			build-from-src	Framework QMK HID

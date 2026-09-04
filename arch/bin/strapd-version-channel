@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# strapd:summary=Print the active strapd mirror and package channel
+
+# Every channel's mirrorlist points at Arch's geo mirror and no strapd repo is
+# configured, so there is nothing here to distinguish yet. Reporting "stable"
+# off a hostname that means nothing would be worse than saying so.
+echo "unset"

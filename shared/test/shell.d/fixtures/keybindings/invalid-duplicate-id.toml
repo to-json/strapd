@@ -1,0 +1,17 @@
+[[action]]
+id = "window.close"
+category = "window"
+description = "Close focused window"
+key = "SUPER+W"
+
+  [action.niri]
+  dispatch = "close-window"
+
+[[action]]
+id = "window.close"
+category = "window"
+description = "Close focused window (duplicate id)"
+key = "SUPER+SHIFT+W"
+
+  [action.niri]
+  dispatch = "close-window"

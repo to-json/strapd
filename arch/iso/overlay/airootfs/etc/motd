@@ -1,0 +1,14 @@
+
+  strapd installer
+
+  Install to this machine:      strapd-install
+
+  Wi-Fi first, if you need it:  iwctl
+                                  station wlan0 scan
+                                  station wlan0 get-networks
+                                  station wlan0 connect YOUR-SSID
+                                  exit
+
+  The installer erases the disk you choose. It asks everything up front
+  and confirms the disk by name before it writes anything.
+

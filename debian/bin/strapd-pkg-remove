@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# strapd:summary=Show a fuzzy-finder TUI for picking packages installed on the system to be removed.
+# strapd:requires-sudo=true
+
+fzf_args=(
+  --multi
+  --preview 'apt-cache show {1} 2>/dev/null || dpkg -s {1}'
+  --preview-label='alt-p: toggle description, alt-j/k: scroll, tab: multi-select'
+  --preview-label-pos='bottom'
+  --preview-window 'down:65%:wrap'
+  --bind 'alt-p:toggle-preview'
+  --bind 'alt-d:preview-half-page-down,alt-u:preview-half-page-up'
+  --bind 'alt-k:preview-up,alt-j:preview-down'
+  --color 'pointer:red,marker:red'
+)
+
+# Only manually-installed packages: apt-mark's "manual" set is the Debian
+# analogue of pacman -Qqe (explicitly installed), so the picker offers what the
+# user chose rather than the whole dependency closure.
+pkg_names=$(apt-mark showmanual | sort | fzf "${fzf_args[@]}")
+
+if [[ -n $pkg_names ]]; then
+  # purge --auto-remove is the -Rns analogue: drop the package with its config
+  # and any dependencies nothing else still needs.
+  echo "$pkg_names" | tr '\n' ' ' | xargs sudo apt-get purge --auto-remove -y
+  strapd-show-done
+fi

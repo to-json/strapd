@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# strapd:summary=Launch Bitwarden or start its installer when missing.
+
+set -e
+
+if strapd-cmd-present bitwarden; then
+  exec setsid uwsm-app -- bitwarden
+else
+  exec strapd-launch-floating-terminal-with-presentation strapd-install-service-bitwarden
+fi

@@ -1,0 +1,89 @@
+// Window rules: which windows float, which open full screen, which stay fully
+// opaque, and how big they come up.
+//
+// Hand-written per compositor rather than generated from one table the way
+// the keybindings are. Niri, sway and mango disagree about what a window rule
+// can say at all, and the disagreements are not roundable: where one of them
+// cannot express a rule the other two do, the file says so instead of leaving
+// a silent gap. This is the same bargain keybindings/actions.toml makes with
+// `unsupported`, written in prose because there is no table here to put it in.
+//
+// Niri applies every rule that matches and the last one to set a property
+// wins, so the order below matters, and ~/.config/niri/windows.kdl, which
+// loads after this file, wins over all of it.
+
+// A hair of translucency, so a window reads as a window on a desktop rather
+// than as the whole screen. Rules below take it back wherever seeing through
+// a window is a defect rather than an effect.
+window-rule {
+    opacity 0.985
+}
+
+// Anything whose pixels are the point: video, images, colour work, and the
+// browser, whose subpixel text antialiasing is drawn for an opaque backdrop
+// and fringes visibly without one.
+window-rule {
+    match app-id=r#"^(chromium|imv|mpv|com\.obsproject\.Studio|org\.kde\.kdenlive|org\.gnome\.NautilusPreviewer)$"#
+    opacity 1.0
+}
+
+// Dialogs and single-purpose windows float rather than taking a column in the
+// scroll. The portal is every file picker, screen-share chooser and
+// permission prompt on the system, whatever app asked for it.
+window-rule {
+    match app-id=r#"^xdg-desktop-portal-gtk$"#
+    match app-id=r#"^(imv|mpv)$"#
+    match app-id=r#"[Ll]ocalsend"#
+    open-floating true
+}
+
+// Floating terminals: the size a TUI wants before it starts word-wrapping.
+// `TUI.float` is the app-id strapd-tui-install gives an entry it marked as
+// floating; `TUI.tile` deliberately gets no rule and tiles like anything else.
+// `org.strapd.terminal` is what strapd-launch-floating-terminal-with-presentation
+// runs an installer or an update in, which is a dialog wearing a terminal.
+window-rule {
+    match app-id=r#"^TUI\.float$"#
+    match app-id=r#"^org\.strapd\.terminal$"#
+    open-floating true
+    default-column-width { fixed 875; }
+    default-window-height { fixed 600; }
+}
+
+// Picture-in-picture: a small video that belongs in a corner, out of the way,
+// with nothing drawn around it.
+//
+// It stays on the workspace it opened on. Pinning it across workspaces is the
+// part niri cannot do; it has no sticky or always-on-top window concept,
+// where sway has `sticky enable` and mango has `isglobal`, and both of their
+// files use it.
+window-rule {
+    match title=r#"[Pp]icture.?in.?[Pp]icture"#
+    open-floating true
+    default-column-width { fixed 600; }
+    default-window-height { fixed 338; }
+    default-floating-position x=40 y=40 relative-to="bottom-right"
+    opacity 1.0
+    border { off; }
+    focus-ring { off; }
+}
+
+// Games and game streaming: full screen from the start, and no translucency
+// over the top of them.
+//
+// Keeping the screen awake while they run is the other part niri cannot do:
+// it has no idle-inhibit window rule and honours only the client's own
+// idle-inhibit request. A game that never makes that request will dim under
+// niri where sway's `inhibit_idle` and mango's `idleinhibit_when_focus` would
+// have held the screen on.
+window-rule {
+    match app-id=r#"^(com\.moonlight_stream\.Moonlight|com\.libretro\.RetroArch)$"#
+    open-fullscreen true
+    opacity 1.0
+}
+
+// Not here: the "<app> is sharing your screen" window a browser puts up for
+// the length of a screen share, which sway parks in its scratchpad. Niri has
+// no scratchpad, and the nearest thing, opening it on a workspace of its
+// own, puts a workspace in the switcher for as long as the share lasts,
+// trading one thing in the way for another.

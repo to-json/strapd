@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=strapd (Niri)
+Comment=strapd's scrollable-tiling session, managed by uwsm
+Exec=strapd-session niri
+TryExec=niri
+Type=Application
+DesktopNames=niri

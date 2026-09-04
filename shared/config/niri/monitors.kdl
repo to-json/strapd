@@ -1,0 +1,23 @@
+// Your monitors. Niri picks a sensible mode and arrangement on its own, so
+// this file is empty until you disagree with it.
+//
+// `niri msg outputs` prints the names and available modes of what is plugged
+// in right now.
+//
+// output "eDP-1" {
+//     scale 1.5
+//     position x=0 y=0
+// }
+//
+// output "DP-1" {
+//     mode "3840x2160@59.997"
+//     scale 2
+//     position x=2560 y=0
+//     variable-refresh-rate
+// }
+//
+// A monitor you want ignored entirely:
+//
+// output "HDMI-A-1" {
+//     off
+// }

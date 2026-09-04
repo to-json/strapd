@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# strapd:summary=Clear the internal-monitor-disable toggle if no external display is connected.
+
+# The safety net under turning the laptop's own display off. Unplug the external
+# monitor with that toggle still set and the next session has nowhere to draw
+# and no visible way to undo it, so the toggle is cleared before the session
+# starts. strapd-recover-internal-monitor.service runs this, at
+# graphical-session-pre.
+#
+# Nothing sets the flag yet, so this and its unit sit inert, which is what the
+# unit's ConditionPathExists already says.
+
+if strapd-toggle-enabled internal-monitor-disable && ! strapd-hw-external-monitors; then
+  strapd-toggle internal-monitor-disable off
+fi

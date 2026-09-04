@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# strapd:summary=Show the current battery status notification
+
+strapd-notification-send -g 󰁹 -u low "$(strapd-battery-status)"

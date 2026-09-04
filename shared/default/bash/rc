@@ -1,0 +1,7 @@
+: "${STRAPD_PATH:=/usr/share/strapd}"
+source "$STRAPD_PATH/default/bash/envs"
+source "$STRAPD_PATH/default/bash/shell"
+source "$STRAPD_PATH/default/bash/aliases"
+source "$STRAPD_PATH/default/bash/functions"
+source "$STRAPD_PATH/default/bash/init"
+[[ $- == *i* ]] && bind -f "$STRAPD_PATH/default/bash/inputrc"

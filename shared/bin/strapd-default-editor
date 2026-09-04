@@ -1,0 +1,59 @@
+#!/bin/bash
+
+# strapd:summary=Set the default editor used by strapd-launch-editor
+# strapd:args=[code|cursor|zed|sublime_text|helix|vim|emacs|nvim]
+# strapd:examples=strapd default editor | strapd default editor code | strapd default editor helix
+
+installing=false
+if [[ ${1:-} == "--install" ]]; then
+  installing=true
+  shift
+fi
+
+editor_file="$HOME/.local/state/strapd/defaults/editor"
+
+if (($# == 0)); then
+  if [[ -f $editor_file ]]; then
+    read -r editor <"$editor_file"
+  fi
+
+  [[ -n $editor ]] && echo "$editor" || echo "nvim"
+  exit 0
+fi
+
+case "$1" in
+code) selection="code"; editor="code"; name="VSCode"; glyph= ;;
+cursor) selection="cursor"; editor="cursor"; name="Cursor"; glyph= ;;
+zed | zeditor) selection="zed"; editor="zeditor"; name="Zed"; glyph= ;;
+sublime_text) selection="sublime_text"; editor="sublime_text"; name="Sublime Text"; glyph= ;;
+helix) selection="helix"; editor="helix"; name="Helix"; glyph= ;;
+vim) selection="vim"; editor="vim"; name="Vim"; glyph= ;;
+emacs) selection="emacs"; editor="emacs"; name="Emacs"; glyph= ;;
+nvim) selection="nvim"; editor="nvim"; name="Neovim"; glyph= ;;
+*)
+  echo "Usage: strapd-default-editor <code|cursor|zed|sublime_text|helix|vim|emacs|nvim>"
+  exit 1
+  ;;
+esac
+
+if strapd-cmd-missing "$editor"; then
+  if [[ $installing == "false" ]]; then
+    exec strapd-launch-floating-terminal-with-presentation strapd-default-editor --install "$selection"
+  else
+    case "$selection" in
+    code) strapd-install-editor-vscode ;;
+    cursor) strapd-pkg-add cursor-bin ;;
+    zed) strapd-install-editor-zed ;;
+    sublime_text) strapd-pkg-add sublime-text-4 ;;
+    helix) strapd-install-editor-helix ;;
+    vim) strapd-pkg-add vim ;;
+    emacs) strapd-install-editor-emacs ;;
+    nvim) strapd-pkg-add neovim ;;
+    esac || exit 1
+  fi
+fi
+
+mkdir -p "$(dirname "$editor_file")"
+printf '%s\n' "$editor" >"$editor_file"
+
+strapd-notification-send -g $glyph "$name is now the default editor"

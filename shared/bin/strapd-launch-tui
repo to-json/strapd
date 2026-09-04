@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# strapd:summary=Launch a TUI command in the default terminal with strapd styling
+# strapd:args=[--app-id=<app-id>] <command> [args...]
+
+if [[ ${1:-} == --app-id=* ]]; then
+  APP_ID="${1#--app-id=}"
+  shift
+else
+  APP_ID="org.strapd.$(basename $1)"
+fi
+
+exec setsid uwsm-app -- xdg-terminal-exec --app-id=$APP_ID -e "$1" "${@:2}"

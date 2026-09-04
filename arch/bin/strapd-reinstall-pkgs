@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# strapd:summary=Reinstall all default strapd packages from the stable channel
+# strapd:requires-sudo=true
+
+set -e
+
+# Set the package repository to the stable mirrors
+strapd-refresh-pacman
+
+sudo env STRAPD_UPDATE_PACMAN=1 pacman -Suu --noconfirm
+
+mapfile -t packages < <(grep -v '^#' "$STRAPD_PATH/install/strapd-base.packages" | grep -v '^$')
+sudo env STRAPD_UPDATE_PACMAN=1 pacman -Syu --noconfirm --needed "${packages[@]}"

@@ -1,0 +1,870 @@
+# strapd default keybindings - source of truth.
+#
+# See keybindings/schema.md for field semantics and validation rules, and
+# bin/strapd-keybindings-generate for how this file becomes a real
+# compositor config (currently: niri only).
+#
+# A representative default set. Where an action has no clean equivalent on a
+# backend, that backend's table says so with a real reason instead of guessing
+# at syntax.
+#
+# Two content notes that apply across this whole file:
+#
+# - `apps.*` and several `utilities.*`/`media.*`/`session.*` actions spawn
+#   `strapd-*` helper commands that don't exist yet (e.g.
+#   "strapd-launch-terminal", "strapd-audio-output-volume"). This is a
+#   deliberate forward-reference, not a mistake: strapd doesn't have its
+#   default-app-resolution or media-control mechanism built yet (later
+#   phases), and hardcoding a concrete binary (e.g. "alacritty") here would
+#   silently bake in a specific choice this project hasn't made. Naming the
+#   eventual helper now means this file won't need to change shape when that
+#   phase lands - only the helper scripts need to start existing.
+# - `key` values intentionally stick to SUPER/SHIFT/ALT/CTRL + a single
+#   letter or digit, never XF86 media-key names, mouse buttons, arrow/named
+#   keys, or switch: bindings - that's the only key shape the renderer's key
+#   translation is tested against in this scope. Real hardware media keys
+#   (XF86AudioRaiseVolume and friends) are a later concern; the `media`
+#   category below covers the same intent with plain keyboard chords instead.
+
+# ---------------------------------------------------------------------------
+# window
+# ---------------------------------------------------------------------------
+
+[[action]]
+id = "window.close"
+category = "window"
+description = "Close focused window"
+key = "SUPER+W"
+
+  [action.niri]
+  dispatch = "close-window"
+
+  [action.sway]
+  dispatch = "kill"
+
+  [action.mango]
+  dispatch = "killclient"
+
+[[action]]
+id = "window.close_alt"
+category = "window"
+description = "Close focused window (alternate binding)"
+key = "SUPER+Q"
+
+  [action.niri]
+  dispatch = "close-window"
+
+  [action.sway]
+  dispatch = "kill"
+
+  [action.mango]
+  dispatch = "killclient"
+
+[[action]]
+id = "window.fullscreen"
+category = "window"
+description = "Toggle fullscreen"
+key = "SUPER+F"
+
+  [action.niri]
+  dispatch = "fullscreen-window"
+
+  [action.sway]
+  dispatch = "fullscreen toggle"
+
+  [action.mango]
+  dispatch = "togglefullscreen"
+
+[[action]]
+id = "window.maximize"
+category = "window"
+description = "Maximize column (full width)"
+key = "SUPER+ALT+F"
+
+  [action.niri]
+  dispatch = "maximize-column"
+
+  [action.sway]
+  unsupported = true
+  reason = "Maximizing a column is a niri concept; a sway window is either its share of the tree or fullscreen, and fullscreen is already bound by window.fullscreen"
+
+  [action.mango]
+  dispatch = "togglemaximizescreen"
+
+[[action]]
+id = "window.windowed_fullscreen"
+category = "window"
+description = "Tell the focused window it is fullscreen while leaving it in the layout"
+key = "SUPER+CTRL+F"
+
+  [action.niri]
+  dispatch = "toggle-windowed-fullscreen"
+
+  [action.sway]
+  unsupported = true
+  reason = "Sway has one fullscreen and it takes the whole output; there is no state that reports fullscreen to the client while the compositor keeps the window in the tree"
+
+  [action.mango]
+  dispatch = "togglefakefullscreen"
+
+[[action]]
+id = "window.pop"
+category = "window"
+description = "Pop the focused window out as a fixed floating window, or put it back"
+key = "SUPER+SHIFT+O"
+
+  [action.niri]
+  dispatch = "spawn \"strapd-wm-window-pop\""
+
+  [action.sway]
+  dispatch = "exec strapd-wm-window-pop"
+
+  [action.mango]
+  dispatch = "spawn,strapd-wm-window-pop"
+
+[[action]]
+id = "window.toggle_floating"
+category = "window"
+description = "Toggle floating/tiling for focused window"
+key = "SUPER+T"
+
+  [action.niri]
+  dispatch = "toggle-window-floating"
+
+  [action.sway]
+  dispatch = "floating toggle"
+
+  [action.mango]
+  dispatch = "togglefloating"
+
+[[action]]
+id = "window.focus_left"
+category = "window"
+description = "Focus column to the left"
+key = "SUPER+H"
+
+  [action.niri]
+  dispatch = "focus-column-left"
+
+  [action.sway]
+  dispatch = "focus left"
+
+  [action.mango]
+  dispatch = "focusdir,left"
+
+[[action]]
+id = "window.focus_right"
+category = "window"
+description = "Focus column to the right"
+key = "SUPER+L"
+
+  [action.niri]
+  dispatch = "focus-column-right"
+
+  [action.sway]
+  dispatch = "focus right"
+
+  [action.mango]
+  dispatch = "focusdir,right"
+
+[[action]]
+id = "window.focus_up"
+category = "window"
+description = "Focus window above"
+key = "SUPER+K"
+
+  [action.niri]
+  dispatch = "focus-window-up"
+
+  [action.sway]
+  dispatch = "focus up"
+
+  [action.mango]
+  dispatch = "focusdir,up"
+
+[[action]]
+id = "window.focus_down"
+category = "window"
+description = "Focus window below"
+key = "SUPER+J"
+
+  [action.niri]
+  dispatch = "focus-window-down"
+
+  [action.sway]
+  dispatch = "focus down"
+
+  [action.mango]
+  dispatch = "focusdir,down"
+
+# ---------------------------------------------------------------------------
+# workspace
+# ---------------------------------------------------------------------------
+
+# Workspaces 1-9 sit on the digit key of the same name; workspace 10 is the
+# odd one out, on SUPER+0, because there is no "10" key. `repeat` substitutes
+# {n} literally into `key` as well as into id/description/dispatch, so 10
+# cannot come from the range; it would render a bind on a key named "10",
+# which niri rejects outright (caught by test/acceptance.d). Spelling the
+# tenth out as its own action keeps that divergence visible in the data
+# instead of hiding it behind a key-mapping rule in the expander.
+
+[[action]]
+id = "workspace.focus.{n}"
+category = "workspace"
+description = "Switch to workspace {n}"
+key = "SUPER+{n}"
+repeat = { var = "n", range = [1, 9] }
+
+  [action.niri]
+  dispatch = "focus-workspace {n}"
+
+  [action.sway]
+  dispatch = "workspace number {n}"
+
+  [action.mango]
+  dispatch = "view,{n},0"
+
+[[action]]
+id = "workspace.focus.10"
+category = "workspace"
+description = "Switch to workspace 10"
+key = "SUPER+0"
+
+  [action.niri]
+  dispatch = "focus-workspace 10"
+
+  [action.sway]
+  dispatch = "workspace number 10"
+
+  [action.mango]
+  unsupported = true
+  reason = "Mango has nine tags and no tenth to reach; view and tag take 1-9"
+
+[[action]]
+id = "workspace.move_window.{n}"
+category = "workspace"
+description = "Move focused window to workspace {n}"
+key = "SUPER+SHIFT+{n}"
+repeat = { var = "n", range = [1, 9] }
+
+  [action.niri]
+  dispatch = "move-window-to-workspace {n}"
+
+  [action.sway]
+  dispatch = "move container to workspace number {n}"
+
+  [action.mango]
+  dispatch = "tag,{n},0"
+
+[[action]]
+id = "workspace.move_window.10"
+category = "workspace"
+description = "Move focused window to workspace 10"
+key = "SUPER+SHIFT+0"
+
+  [action.niri]
+  dispatch = "move-window-to-workspace 10"
+
+  [action.sway]
+  dispatch = "move container to workspace number 10"
+
+  [action.mango]
+  unsupported = true
+  reason = "Mango has nine tags and no tenth to reach; view and tag take 1-9"
+
+[[action]]
+id = "workspace.next"
+category = "workspace"
+description = "Focus next workspace"
+key = "SUPER+ALT+J"
+
+  [action.niri]
+  dispatch = "focus-workspace-down"
+
+  [action.sway]
+  dispatch = "workspace next"
+
+  [action.mango]
+  dispatch = "viewtoright,0"
+
+[[action]]
+id = "workspace.previous"
+category = "workspace"
+description = "Focus previous workspace"
+key = "SUPER+ALT+K"
+
+  [action.niri]
+  dispatch = "focus-workspace-up"
+
+  [action.sway]
+  dispatch = "workspace prev"
+
+  [action.mango]
+  dispatch = "viewtoleft,0"
+
+[[action]]
+id = "workspace.focus_monitor_left"
+category = "workspace"
+description = "Focus monitor to the left"
+key = "SUPER+CTRL+H"
+
+  [action.niri]
+  dispatch = "focus-monitor-left"
+
+  [action.sway]
+  dispatch = "focus output left"
+
+  [action.mango]
+  dispatch = "focusmon,left"
+
+[[action]]
+id = "workspace.focus_monitor_right"
+category = "workspace"
+description = "Focus monitor to the right"
+key = "SUPER+CTRL+L"
+
+  [action.niri]
+  dispatch = "focus-monitor-right"
+
+  [action.sway]
+  dispatch = "focus output right"
+
+  [action.mango]
+  dispatch = "focusmon,right"
+
+[[action]]
+id = "workspace.move_window_to_monitor_left"
+category = "workspace"
+description = "Move focused window to monitor on the left"
+key = "SUPER+SHIFT+CTRL+H"
+
+  [action.niri]
+  dispatch = "move-window-to-monitor-left"
+
+  [action.sway]
+  dispatch = "move container to output left"
+
+  [action.mango]
+  dispatch = "tagmon,left"
+
+[[action]]
+id = "workspace.move_window_to_monitor_right"
+category = "workspace"
+description = "Move focused window to monitor on the right"
+key = "SUPER+SHIFT+CTRL+L"
+
+  [action.niri]
+  dispatch = "move-window-to-monitor-right"
+
+  [action.sway]
+  dispatch = "move container to output right"
+
+  [action.mango]
+  dispatch = "tagmon,right"
+
+# ---------------------------------------------------------------------------
+# layout
+# ---------------------------------------------------------------------------
+
+[[action]]
+id = "layout.toggle_split"
+category = "layout"
+description = "Toggle window split direction"
+key = "SUPER+CTRL+J"
+
+  [action.niri]
+  unsupported = true
+  reason = "Scrolling-tiling model has no manual split-direction concept"
+
+  [action.sway]
+  dispatch = "layout toggle split"
+
+  [action.mango]
+  unsupported = true
+  reason = "Mango switches whole named layouts with switch_layout; there is no per-container split direction to toggle"
+
+[[action]]
+id = "layout.pseudo_tile"
+category = "layout"
+description = "Toggle pseudo-tiling for focused window"
+key = "SUPER+P"
+
+  [action.niri]
+  unsupported = true
+  reason = "Pseudo-tiling (floating rendered within the tiled layout) is a Hyprland-specific window state; niri's scrolling-tiling model has no equivalent to toggle"
+
+  [action.sway]
+  unsupported = true
+  reason = "Pseudo-tiling is a Hyprland window state; a sway window is either tiled or floating, with nothing in between to toggle"
+
+  [action.mango]
+  unsupported = true
+  reason = "Pseudo-tiling is a Hyprland window state; a mango window is tiled, floating or fullscreen, with nothing in between to toggle"
+
+[[action]]
+id = "layout.resize_pixel_delta"
+category = "layout"
+description = "Resize focused window by a pixel amount"
+key = "SUPER+CTRL+ALT+H"
+
+  [action.niri]
+  unsupported = true
+  reason = "Niri has no arbitrary pixel-delta resize dispatch like Hyprland's resize({x,y,relative=true}); its column/window sizing dispatches are proportional/preset-based instead, and this scope isn't confident enough of their exact syntax to guess at it here"
+
+  [action.sway]
+  dispatch = "resize shrink width 100 px"
+
+  [action.mango]
+  dispatch = "resizewin,-100,0"
+
+[[action]]
+id = "layout.window_grouping"
+category = "layout"
+description = "Toggle window grouping (tabs)"
+key = "SUPER+G"
+
+  [action.niri]
+  unsupported = true
+  reason = "Hyprland window groups/tabs have no equivalent concept in niri's scrolling-tiling model"
+
+  [action.sway]
+  dispatch = "layout toggle split tabbed"
+
+  [action.mango]
+  unsupported = true
+  reason = "Mango has no window grouping or tabbing; its scratchpad is a different feature with its own binding, not a group"
+
+[[action]]
+id = "layout.switch_focus_floating_tiling"
+category = "layout"
+description = "Switch input focus between floating and tiling windows"
+key = "SUPER+CTRL+T"
+
+  [action.niri]
+  dispatch = "switch-focus-between-floating-and-tiling"
+
+  [action.sway]
+  dispatch = "focus mode_toggle"
+
+  [action.mango]
+  unsupported = true
+  reason = "Mango's focus dispatchers walk whatever is on the current tag; none of them moves focus between the floating and tiled sets specifically"
+
+[[action]]
+id = "layout.toggle_overview"
+category = "layout"
+description = "Toggle the workspace overview"
+key = "SUPER+O"
+
+  [action.niri]
+  dispatch = "toggle-overview"
+
+  [action.sway]
+  unsupported = true
+  reason = "Sway has no built-in workspace overview; the equivalent comes from an external tool with its own binding rather than from a sway command"
+
+  [action.mango]
+  dispatch = "toggleoverview"
+
+# ---------------------------------------------------------------------------
+# session
+# ---------------------------------------------------------------------------
+
+[[action]]
+id = "session.quit"
+category = "session"
+description = "Quit the compositor session"
+key = "SUPER+SHIFT+Q"
+
+  [action.niri]
+  dispatch = "quit"
+
+  [action.sway]
+  dispatch = "exit"
+
+  [action.mango]
+  dispatch = "quit"
+
+[[action]]
+id = "session.lock"
+category = "session"
+description = "Lock the system"
+key = "SUPER+CTRL+ALT+L"
+
+  [action.niri]
+  dispatch = "spawn \"strapd-system-lock\""
+
+  [action.sway]
+  dispatch = "exec strapd-system-lock"
+
+  [action.mango]
+  dispatch = "spawn,strapd-system-lock"
+
+[[action]]
+id = "session.power_menu"
+category = "session"
+description = "Open the system power menu"
+key = "SUPER+CTRL+P"
+
+  [action.niri]
+  dispatch = "spawn \"strapd-menu\" \"toggle\" \"system\""
+
+  [action.sway]
+  dispatch = "exec strapd-menu toggle system"
+
+  [action.mango]
+  dispatch = "spawn,strapd-menu toggle system"
+
+[[action]]
+id = "session.suspend"
+category = "session"
+description = "Suspend the system"
+key = "SUPER+SHIFT+ALT+S"
+
+  [action.niri]
+  dispatch = "spawn \"systemctl\" \"suspend\""
+
+  [action.sway]
+  dispatch = "exec systemctl suspend"
+
+  [action.mango]
+  dispatch = "spawn,systemctl suspend"
+
+# ---------------------------------------------------------------------------
+# media
+#
+# Bound to plain keyboard chords rather than XF86Audio*/XF86MonBrightness* key
+# names, which the schema does not cover yet. Dispatches spawn strapd-* helpers
+# rather than calling wpctl/brightnessctl directly.
+# ---------------------------------------------------------------------------
+
+[[action]]
+id = "media.volume_up"
+category = "media"
+description = "Raise output volume"
+key = "SUPER+CTRL+U"
+
+  [action.niri]
+  dispatch = "spawn \"strapd-audio-output-volume\" \"raise\""
+
+  [action.sway]
+  dispatch = "exec strapd-audio-output-volume raise"
+
+  [action.mango]
+  dispatch = "spawn,strapd-audio-output-volume raise"
+
+[[action]]
+id = "media.volume_down"
+category = "media"
+description = "Lower output volume"
+key = "SUPER+CTRL+D"
+
+  [action.niri]
+  dispatch = "spawn \"strapd-audio-output-volume\" \"lower\""
+
+  [action.sway]
+  dispatch = "exec strapd-audio-output-volume lower"
+
+  [action.mango]
+  dispatch = "spawn,strapd-audio-output-volume lower"
+
+[[action]]
+id = "media.volume_mute"
+category = "media"
+description = "Toggle output mute"
+key = "SUPER+CTRL+M"
+
+  [action.niri]
+  dispatch = "spawn \"strapd-audio-output-volume\" \"mute-toggle\""
+
+  [action.sway]
+  dispatch = "exec strapd-audio-output-volume mute-toggle"
+
+  [action.mango]
+  dispatch = "spawn,strapd-audio-output-volume mute-toggle"
+
+[[action]]
+id = "media.brightness_up"
+category = "media"
+description = "Raise screen brightness"
+key = "SUPER+SHIFT+CTRL+U"
+
+  [action.niri]
+  dispatch = "spawn \"strapd-brightness-display\" \"up\""
+
+  [action.sway]
+  dispatch = "exec strapd-brightness-display up"
+
+  [action.mango]
+  dispatch = "spawn,strapd-brightness-display up"
+
+[[action]]
+id = "media.brightness_down"
+category = "media"
+description = "Lower screen brightness"
+key = "SUPER+SHIFT+CTRL+D"
+
+  [action.niri]
+  dispatch = "spawn \"strapd-brightness-display\" \"down\""
+
+  [action.sway]
+  dispatch = "exec strapd-brightness-display down"
+
+  [action.mango]
+  dispatch = "spawn,strapd-brightness-display down"
+
+[[action]]
+id = "media.playpause"
+category = "media"
+description = "Play/pause media"
+key = "SUPER+SHIFT+CTRL+P"
+
+  [action.niri]
+  dispatch = "spawn \"strapd-media\" \"playPause\""
+
+  [action.sway]
+  dispatch = "exec strapd-media playPause"
+
+  [action.mango]
+  dispatch = "spawn,strapd-media playPause"
+
+# ---------------------------------------------------------------------------
+# apps
+#
+# See file header: these spawn strapd-launch-* forward-references pending
+# strapd's own default-app-resolution mechanism, rather than a hardcoded
+# concrete binary name.
+# ---------------------------------------------------------------------------
+
+[[action]]
+id = "apps.terminal"
+category = "apps"
+description = "Open terminal"
+key = "SUPER+SHIFT+T"
+
+  [action.niri]
+  dispatch = "spawn \"strapd-launch-terminal\""
+
+  [action.sway]
+  dispatch = "exec strapd-launch-terminal"
+
+  [action.mango]
+  dispatch = "spawn,strapd-launch-terminal"
+
+[[action]]
+id = "apps.browser"
+category = "apps"
+description = "Open browser"
+key = "SUPER+SHIFT+B"
+
+  [action.niri]
+  dispatch = "spawn \"strapd-launch-browser\""
+
+  [action.sway]
+  dispatch = "exec strapd-launch-browser"
+
+  [action.mango]
+  dispatch = "spawn,strapd-launch-browser"
+
+[[action]]
+id = "apps.browser_private"
+category = "apps"
+description = "Open browser in a private window"
+key = "SUPER+SHIFT+ALT+B"
+
+  [action.niri]
+  dispatch = "spawn \"strapd-launch-browser\" \"--private\""
+
+  [action.sway]
+  dispatch = "exec strapd-launch-browser --private"
+
+  [action.mango]
+  dispatch = "spawn,strapd-launch-browser --private"
+
+[[action]]
+id = "apps.file_manager"
+category = "apps"
+description = "Open file manager"
+key = "SUPER+SHIFT+F"
+
+  [action.niri]
+  dispatch = "spawn \"strapd-launch-file-manager\""
+
+  [action.sway]
+  dispatch = "exec strapd-launch-file-manager"
+
+  [action.mango]
+  dispatch = "spawn,strapd-launch-file-manager"
+
+[[action]]
+id = "apps.editor"
+category = "apps"
+description = "Open editor"
+key = "SUPER+SHIFT+N"
+
+  [action.niri]
+  dispatch = "spawn \"strapd-launch-editor\""
+
+  [action.sway]
+  dispatch = "exec strapd-launch-editor"
+
+  [action.mango]
+  dispatch = "spawn,strapd-launch-editor"
+
+# ---------------------------------------------------------------------------
+# utilities
+# ---------------------------------------------------------------------------
+
+[[action]]
+id = "utilities.app_launcher"
+category = "utilities"
+description = "Toggle app launcher menu"
+key = "SUPER+A"
+
+  [action.niri]
+  dispatch = "spawn \"strapd-menu\" \"toggle\""
+
+  [action.sway]
+  dispatch = "exec strapd-menu toggle"
+
+  [action.mango]
+  dispatch = "spawn,strapd-menu toggle"
+
+[[action]]
+id = "utilities.apps_menu"
+category = "utilities"
+description = "Toggle apps menu"
+key = "SUPER+ALT+A"
+
+  [action.niri]
+  dispatch = "spawn \"strapd-menu\" \"toggle\" \"apps\""
+
+  [action.sway]
+  dispatch = "exec strapd-menu toggle apps"
+
+  [action.mango]
+  dispatch = "spawn,strapd-menu toggle apps"
+
+[[action]]
+id = "utilities.keybindings"
+category = "utilities"
+description = "Show this list of keybindings"
+key = "SUPER+SHIFT+K"
+
+  [action.niri]
+  dispatch = "spawn \"strapd-menu-keybindings\""
+
+  [action.sway]
+  dispatch = "exec strapd-menu-keybindings"
+
+  [action.mango]
+  dispatch = "spawn,strapd-menu-keybindings"
+
+[[action]]
+id = "utilities.screenshot"
+category = "utilities"
+description = "Take a screenshot"
+key = "SUPER+CTRL+S"
+
+  [action.niri]
+  dispatch = "screenshot"
+
+  [action.sway]
+  dispatch = "exec strapd-capture-screenshot region"
+
+  [action.mango]
+  dispatch = "spawn,strapd-capture-screenshot region"
+
+[[action]]
+id = "utilities.screenshot_window"
+category = "utilities"
+description = "Screenshot the focused window"
+key = "SUPER+SHIFT+CTRL+S"
+
+  [action.niri]
+  dispatch = "screenshot-window"
+
+  [action.sway]
+  dispatch = "exec strapd-capture-screenshot windows"
+
+  [action.mango]
+  dispatch = "spawn,strapd-capture-screenshot windows"
+
+[[action]]
+id = "utilities.screenshot_screen"
+category = "utilities"
+description = "Screenshot the whole screen"
+key = "SUPER+CTRL+ALT+S"
+
+  [action.niri]
+  dispatch = "screenshot-screen"
+
+  [action.sway]
+  dispatch = "exec strapd-capture-screenshot fullscreen"
+
+  [action.mango]
+  dispatch = "spawn,strapd-capture-screenshot fullscreen"
+
+[[action]]
+id = "utilities.color_picker"
+category = "utilities"
+description = "Pick a color from the screen"
+key = "SUPER+SHIFT+C"
+
+  [action.niri]
+  dispatch = "spawn \"strapd-color-picker\""
+
+  [action.sway]
+  dispatch = "exec strapd-color-picker"
+
+  [action.mango]
+  dispatch = "spawn,strapd-color-picker"
+
+[[action]]
+id = "utilities.toggle_nightlight"
+category = "utilities"
+description = "Toggle nightlight"
+key = "SUPER+CTRL+N"
+
+  [action.niri]
+  dispatch = "spawn \"strapd-toggle-nightlight\""
+
+  [action.sway]
+  dispatch = "exec strapd-toggle-nightlight"
+
+  [action.mango]
+  dispatch = "spawn,strapd-toggle-nightlight"
+
+[[action]]
+id = "utilities.toggle_idle_lock"
+category = "utilities"
+description = "Toggle locking on idle"
+key = "SUPER+CTRL+I"
+
+  [action.niri]
+  dispatch = "spawn \"strapd-toggle-idle\""
+
+  [action.sway]
+  dispatch = "exec strapd-toggle-idle"
+
+  [action.mango]
+  dispatch = "spawn,strapd-toggle-idle"
+
+[[action]]
+id = "utilities.monitor_scaling_toggle"
+category = "utilities"
+description = "Toggle monitor scaling"
+key = "SUPER+CTRL+ALT+M"
+
+  [action.niri]
+  unsupported = true
+  reason = "Monitor scaling is output configuration in niri (set per-output, e.g. via the output {} block or `niri msg output`), not a bind-level dispatch action - there is nothing to bind a toggle key to"
+
+  [action.sway]
+  unsupported = true
+  reason = "Output scale is per-output config in sway (`output <name> scale <n>`, or the same over `swaymsg`), not a command with a toggle to bind"
+
+  [action.mango]
+  unsupported = true
+  reason = "Output scale is set per-output in mango's own config file, not by a dispatcher there is a key to bind"

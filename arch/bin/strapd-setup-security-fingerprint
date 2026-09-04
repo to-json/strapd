@@ -1,0 +1,102 @@
+#!/bin/bash
+
+# strapd:summary=Set up fingerprint authentication for sudo, polkit, and lock screen
+# strapd:requires-sudo=true
+
+set -e
+
+setup_pam_config() {
+  # A clamshell gate runs before pam_fprintd in every stack: when the lid is
+  # shut the reader is unreachable, so it skips fingerprint (success=1) and PAM
+  # drops straight to the password prompt instead of blocking until timeout.
+  #
+  # pam_exec needs a literal absolute path, so point at the fixed /usr/bin path
+  # the strapd package always provides: dev-link overlays $STRAPD_PATH trees but
+  # leaves /usr/bin untouched.
+  local fprintd_gate="auth      [success=1 default=ignore] pam_exec.so quiet /usr/bin/strapd-hw-laptop-closed"
+
+  if ! grep -q pam_fprintd.so /etc/pam.d/sudo; then
+    echo "Configuring sudo for fingerprint authentication..."
+    sudo sed -i '1i auth      sufficient pam_fprintd.so' /etc/pam.d/sudo
+  fi
+  if ! grep -q 'strapd-hw-laptop-closed' /etc/pam.d/sudo; then
+    echo "Adding clamshell gate to sudo..."
+    # Insert immediately before pam_fprintd so success=1 skips exactly it.
+    sudo sed -i "/pam_fprintd\.so/i $fprintd_gate" /etc/pam.d/sudo
+  fi
+
+  if [[ -f /etc/pam.d/polkit-1 ]]; then
+    if ! grep -q 'pam_fprintd.so' /etc/pam.d/polkit-1; then
+      echo "Configuring polkit for fingerprint authentication..."
+      sudo sed -i '1i auth      sufficient pam_fprintd.so' /etc/pam.d/polkit-1
+    fi
+    if ! grep -q 'strapd-hw-laptop-closed' /etc/pam.d/polkit-1; then
+      echo "Adding clamshell gate to polkit..."
+      sudo sed -i "/pam_fprintd\.so/i $fprintd_gate" /etc/pam.d/polkit-1
+    fi
+  else
+    echo "Creating polkit configuration with fingerprint authentication..."
+    sudo tee /etc/pam.d/polkit-1 >/dev/null <<EOF
+$fprintd_gate
+auth      sufficient pam_fprintd.so
+auth      required pam_unix.so
+
+account   required pam_unix.so
+password  required pam_unix.so
+session   required pam_unix.so
+EOF
+  fi
+}
+
+setup_lock_fingerprint_pam() {
+  echo "Configuring lock screen for fingerprint authentication..."
+  sudo tee /etc/pam.d/strapd-lock-fingerprint >/dev/null <<'EOF'
+#%PAM-1.0
+auth       required                    pam_fprintd.so
+account    include                     system-local-login
+EOF
+}
+
+echo -e "\e[32mSetting up fingerprint scanner for authentication.\n\e[0m"
+
+# Bail before installing anything if there's no reader to talk to.
+if ! strapd-hw-fingerprint; then
+  echo -e "\e[31mNo fingerprint sensor detected.\e[0m"
+  exit 1
+fi
+
+echo "Installing required packages..."
+
+# libfprint-git provides+conflicts libfprint; pacman -S --noconfirm
+# defaults the conflict prompt to N and aborts. Pre-remove it (deps-only,
+# so an installed fprintd stays put) so stock libfprint installs cleanly.
+if pacman -Q libfprint-git &>/dev/null; then
+  sudo pacman -Rdd --noconfirm libfprint-git
+fi
+
+strapd-pkg-add libfprint fprintd usbutils
+
+echo -e "\e[32m\nLet's setup your right index finger as the first fingerprint.\e[0m"
+echo -e "Keep moving the finger around on sensor until the process completes.\n"
+
+if sudo fprintd-enroll "$USER"; then
+  echo -e "\e[32m\nFingerprint enrolled successfully!\e[0m"
+
+  echo -e "\nNow let's verify that it's working correctly.\n"
+  if fprintd-verify; then
+    # PAM comes last, once a print is enrolled and verified: detection only
+    # proves a reader is there, not that libfprint can drive it. An Elan MOC
+    # sensor outside the elanmoc table gets this far and then fails to enroll,
+    # and editing the stacks up front would leave it pointing at pam_fprintd
+    # with nothing to match.
+    setup_pam_config
+    setup_lock_fingerprint_pam
+    echo -e "\e[32m\nPerfect! Fingerprint authentication is now configured.\e[0m"
+    echo "You can use your fingerprint for sudo, polkit, and lock screen (Super + Ctrl + L)."
+  else
+    echo -e "\e[31m\nVerification failed. You may want to try enrolling again.\e[0m"
+  fi
+else
+  echo -e "\e[31m\nEnrollment failed. Please try again.\e[0m"
+  exit 1
+fi

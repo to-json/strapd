@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# strapd:summary=Update strapd and system packages
+# strapd:args=[-y]
+# strapd:examples=strapd update | strapd update -y
+# strapd:requires-sudo=true
+
+# The Debian update path. Arch's strapd-update orchestrates an eighteen-command
+# family, most of it pacman-and-Btrfs specific; on Debian the same intent is a
+# short apt sequence, so this is self-contained rather than a fan-out.
+#
+# Deliberately not carried here: pre-update snapshots (Debian does not assume
+# Btrfs) and the external stack in strapd-external.packages, which apt does not
+# manage.
+
+set -euo pipefail
+
+unattended=0
+if [[ ${1:-} == "-y" ]]; then
+  unattended=1
+elif [[ -n ${1:-} ]]; then
+  echo "Usage: strapd update [-y]" >&2
+  exit 1
+fi
+
+if (( ! unattended )); then
+  read -rp "Update system packages with apt? [y/N] " reply
+  [[ ${reply,,} == y* ]] || { echo "Nothing was changed."; exit 0; }
+fi
+
+sudo apt-get update
+# full-upgrade (not upgrade) so a strapd update can pull in packages held back
+# by changed dependencies, the way a rolling update is expected to. --autoremove
+# clears dependencies nothing needs any more in the same pass.
+sudo apt-get full-upgrade -y --autoremove
+
+# Debian drops this marker when an upgraded package needs a reboot to take
+# effect (a new kernel, mostly). Surface it rather than deciding for the user.
+if [[ -f /var/run/reboot-required ]]; then
+  echo
+  echo "A reboot is required to finish applying updates (strapd system reboot)."
+fi

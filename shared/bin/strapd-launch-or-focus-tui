@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# strapd:summary=Launch a TUI or focus an existing terminal window for it
+# strapd:args=[--app-id=<app-id>] <command> [args...]
+
+if [[ ${1:-} == --app-id=* ]]; then
+  APP_ID="${1#--app-id=}"
+else
+  APP_ID="org.strapd.$(basename "$1")"
+fi
+
+LAUNCH_COMMAND="strapd-launch-tui $@"
+
+exec strapd-launch-or-focus "$APP_ID" "$LAUNCH_COMMAND"

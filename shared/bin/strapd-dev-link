@@ -1,0 +1,132 @@
+#!/bin/bash
+
+# strapd:summary=Point strapd at a local checkout after reboot
+# strapd:group=dev
+# strapd:args=<path-to-checkout> [--no-reboot]
+# strapd:examples=strapd dev link ~/strapd
+
+set -euo pipefail
+
+if (( EUID == 0 )); then
+  echo "Error: run strapd-dev-link as your user, not under sudo." >&2
+  exit 1
+fi
+
+prompt_reboot=1
+
+# sudo resolves a bare command name against secure_path, never the caller's
+# PATH, so a dev-linked checkout is invisible to `sudo strapd-*`: an unshipped
+# command fails outright, and a shipped one silently runs the packaged copy.
+# Prepending the checkout's bin keeps root on the code being edited.
+sudoers_file="/etc/sudoers.d/strapd-dev-path"
+system_secure_path="/usr/local/sbin:/usr/local/bin:/usr/bin"
+
+if (( $# < 1 || $# > 2 )) || [[ $1 == "-h" || $1 == "--help" ]]; then
+  cat <<USAGE
+Usage: strapd dev link <path-to-checkout> [--no-reboot]
+
+Writes /etc/strapd.conf so STRAPD_PATH resolves to <path-to-checkout>
+after reboot. This intentionally does not rewrite the running compositor,
+systemd, shell, or app-launcher environment; reboot to make every layer agree.
+
+The checkout is split (shared/ + arch/); this assembles a flat tree of
+symlinks into it so edits stay live, and points strapd at that. Affects only
+\$STRAPD_PATH-resolved trees: bin/, default/, config/, themes/, applications/,
+keybindings/, install/. Files installed at fixed system paths (/etc/,
+/usr/lib/systemd/, /usr/share/uwsm/env.d, udev rule bodies, /etc/skel after
+user creation, /usr/share/plymouth) are NOT covered. For those, use
+strapd-dev-pkg-test to build and install the package from the checkout.
+
+Also writes $sudoers_file so sudo resolves strapd-*
+from the checkout instead of the packaged copies. That part takes effect
+immediately, no reboot needed.
+
+Use --no-reboot when another command will handle the reboot prompt.
+USAGE
+  exit 0
+fi
+
+if (( $# == 2 )); then
+  if [[ $2 == "--no-reboot" ]]; then
+    prompt_reboot=0
+  else
+    echo "Usage: strapd dev link <path-to-checkout> [--no-reboot]" >&2
+    exit 1
+  fi
+fi
+
+strapd_conf_quote() {
+  local value="$1"
+  value=${value//\\/\\\\}
+  value=${value//\"/\\\"}
+  value=${value//\$/\\\$}
+  value=${value//\`/\\\`}
+  printf '"%s"' "$value"
+}
+
+# A double-quoted sudoers string takes a backslash escape for a literal
+# backslash or quote and nothing else; a path with a space is already covered.
+sudoers_quote() {
+  local value="$1"
+  value=${value//\\/\\\\}
+  value=${value//\"/\\\"}
+  printf '"%s"' "$value"
+}
+
+checkout=$(realpath -e "$1" 2>/dev/null) || {
+  echo "Error: path does not exist: $1" >&2
+  exit 1
+}
+
+# A checkout is split by distro (shared/ + arch/); the runtime tree is flat.
+# cp -s assembles a flat tree of symlinks into the checkout, so $STRAPD_PATH
+# resolves the usual layout while edits stay live. Adding or removing a file
+# means re-running this.
+if [[ ! -d $checkout/shared || ! -d $checkout/arch ]]; then
+  echo "Warning: $checkout has no shared/ and arch/. Does this look like a strapd source checkout?" >&2
+fi
+
+target="${XDG_STATE_HOME:-$HOME/.local/state}/strapd/dev-tree"
+rm -rf "$target"
+mkdir -p "$target"
+[[ -d $checkout/shared ]] && cp -as "$checkout/shared/." "$target/"
+[[ -d $checkout/arch ]] && cp -as "$checkout/arch/." "$target/"
+
+for required in bin default themes; do
+  if [[ ! -d $target/$required ]]; then
+    echo "Warning: $target/$required not present after assembly; checkout may be incomplete" >&2
+  fi
+done
+
+# Staged and parsed before anything is installed: a sudoers file sudo refuses to
+# read takes every rule after it down, including the %wheel grant, and the
+# password prompt needed to undo that is on the other side of the breakage.
+staged_sudoers=$(mktemp)
+trap 'rm -f "$staged_sudoers"' EXIT
+
+{
+  printf 'Defaults secure_path='
+  sudoers_quote "$target/bin:$system_secure_path"
+  printf '\n'
+} >"$staged_sudoers"
+
+if ! visudo -cf "$staged_sudoers" >/dev/null; then
+  echo "Error: refusing to install an invalid $sudoers_file for $target" >&2
+  exit 1
+fi
+
+{
+  printf 'export STRAPD_PATH='
+  strapd_conf_quote "$target"
+  printf '\n'
+} | sudo tee /etc/strapd.conf >/dev/null
+
+sudo install -Dm440 -o root -g root "$staged_sudoers" "$sudoers_file"
+
+echo "Pointed strapd at $checkout (via the assembled tree at $target)"
+echo "sudo now resolves strapd-* from $target/bin"
+echo
+
+if (( prompt_reboot )) && gum confirm "Reboot now to activate?"; then
+  strapd-system-reboot
+fi

@@ -1,0 +1,5 @@
+[[action]]
+id = "window.close"
+category = "window"
+description = "Close focused window"
+key = "SUPER+W"

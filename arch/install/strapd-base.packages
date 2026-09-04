@@ -1,0 +1,191 @@
+# strapd core package list, restricted to Arch's own core/extra/multilib.
+# The ISO builder reads this file when constructing the offline mirror.
+#
+# AUR packages are in strapd-aur.packages instead, because they need a build
+# step and cannot be pacstrapped. Keeping them out is what makes this file
+# installable with nothing but a stock pacman.conf.
+#
+# Why the non-obvious entries are here, so they do not get pruned as unused:
+#
+#   go-yq             strapd-keybindings-generate reads keybindings/actions.toml
+#                     with it.
+#   xwayland-satellite  how niri runs X11 apps. Without it every X11 client
+#                     silently fails to start.
+#   gammastep         warms the screen through zwlr_gamma_control_manager_v1,
+#                     which niri, sway and mango all implement, so it needs no
+#                     compositor IPC. See bin/strapd-toggle-nightlight.
+#   hyprpicker        the name is the only Hyprland thing about it: it is a
+#                     wlroots screen-freeze and colour picker, and
+#                     strapd-capture-region uses the freeze so a selection
+#                     dragged over live content captures what was on screen
+#                     when the picker opened. Runs on niri and mango, verified;
+#                     on sway too, though it refuses to start without a pointer
+#                     device, so the headless rig cannot show it.
+#   swaybg            what sway shells out to for `output bg`. It is only an
+#                     optdepend, and without it sway logs "failed to execute
+#                     'swaybg'" and leaves the desktop black. niri and mango
+#                     paint their own backdrop.
+#   swaylock          answers strapd-system-lock, which is a key on every
+#                     keyboard layout strapd ships. It is the wlroots
+#                     ext-session-lock-v1 client, all three compositors
+#                     advertise ext_session_lock_manager_v1, and its PAM file
+#                     ships with the package and includes `login`, so it needs
+#                     no configuration of ours.
+#   greetd, greetd-tuigreet  the login screen. tuigreet lists the three session
+#                     files strapd installs; swapping it for noctalia-greeter
+#                     is one line of etc/greetd/config.toml.
+#   noctalia          the shell: bar, panels and OSDs. It draws a bar on each
+#                     output, opens an IPC socket, and owns the wallpaper while
+#                     running. It does not claim org.freedesktop.Notifications,
+#                     which is why mako is also needed.
+#   mako              claims org.freedesktop.Notifications, which every
+#                     strapd-notification-send call needs a listener for, and
+#                     ships a systemd user unit that first-run enables.
+#   playerctl         how strapd-media reaches whatever is playing, over MPRIS
+#                     directly rather than through a bar.
+#   fuzzel            the menu every strapd-menu-* command draws with, reached
+#                     through strapd-menu-select alone.
+#   niri, sway        two of the three compositors v1 ships. MangoWC is not in
+#                     Arch's repos and is in strapd-aur.packages.
+#   uwsm              starts a compositor as a systemd user session, and is
+#                     compositor-agnostic.
+#
+# Obsidian is deliberately absent: it is proprietary, so a fresh install boots
+# entirely open source and `strapd install obsidian` is one command away. Its
+# Arch wrapper flags file lives in default/obsidian/, which only the installer
+# reads, rather than config/, which is seeded into every user's home.
+
+alsa-utils
+avahi
+bash-completion
+bat
+bluez
+bluez-tools
+bluez-utils
+bolt
+brightnessctl
+btop
+chromium
+clang
+cups
+cups-browsed
+cups-filters
+cups-pdf
+ddcutil
+docker
+docker-buildx
+docker-compose
+dosfstools
+dotnet-runtime
+dua-cli
+evince
+exfatprogs
+expac
+eza
+fakeroot
+fastfetch
+fcitx5
+fcitx5-gtk
+fcitx5-qt
+fd
+ffmpegthumbnailer
+fontconfig
+foot
+fuzzel
+fzf
+gammastep
+git
+gnome-disk-utility
+gnome-keyring
+gnome-themes-extra
+go-yq
+gpu-screen-recorder
+greetd
+greetd-tuigreet
+grim
+gum
+gvfs-mtp
+gvfs-nfs
+gvfs-smb
+hyprpicker
+imagemagick
+imv
+inetutils
+inotify-tools
+inxi
+jq
+kdenlive
+kernel-modules-hook
+lazydocker
+lazygit
+less
+libreoffice-fresh
+libsecret
+libvips
+libyaml
+llvm
+lua51
+luarocks
+mako
+man-db
+mariadb-libs
+moonlight-qt
+mpv
+mpv-mpris
+nautilus
+nautilus-python
+neovim
+networkmanager
+niri
+noctalia
+noto-fonts
+noto-fonts-cjk
+noto-fonts-emoji
+nss-mdns
+obs-studio
+pacman-contrib
+pamixer
+pinta
+playerctl
+plocate
+plymouth
+postgresql-libs
+power-profiles-daemon
+python-gobject
+python-poetry-core
+qemu-user-static-binfmt
+qrencode
+qt6-imageformats
+ripgrep
+ruby
+slurp
+socat
+starship
+sushi
+sway
+swaybg
+swaylock
+system-config-printer
+tesseract
+tesseract-data-eng
+tldr
+tmux
+tree-sitter-cli
+ttf-jetbrains-mono-nerd
+udiskie
+ufw
+unzip
+usage
+uwsm
+whois
+wireless-regdb
+wireplumber
+wl-clipboard
+woff2-font-awesome
+wtype
+xdg-desktop-portal-gtk
+xournalpp
+xwayland-satellite
+yt-dlp
+zbar
+zoxide

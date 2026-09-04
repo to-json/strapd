@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=strapd (Sway)
+Comment=strapd's i3-style tiling session, managed by uwsm
+Exec=strapd-session sway
+TryExec=sway
+Type=Application
+DesktopNames=sway;wlroots

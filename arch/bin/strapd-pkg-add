@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# strapd:summary=Install Arch packages if they are missing
+# strapd:args=<packages...>
+# strapd:examples=strapd pkg add jq ripgrep
+# strapd:requires-sudo=true
+
+if strapd-pkg-missing "$@"; then
+  if (( EUID == 0 )); then
+    pacman -S --noconfirm --needed "$@" || exit 1
+  else
+    sudo pacman -S --noconfirm --needed "$@" || exit 1
+  fi
+fi
+
+for pkg in "$@"; do
+  # pacman does not always register an error, so check the database too.
+  if ! pacman -Q "$pkg" &>/dev/null; then
+    echo -e "\033[31mError: Package '$pkg' did not install\033[0m" >&2
+    exit 1
+  fi
+done
+
+exit 0
