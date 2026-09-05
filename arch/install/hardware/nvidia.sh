@@ -3,10 +3,15 @@ if lspci | grep -qi 'nvidia'; then
   KERNEL_PACKAGE=$(pacman -Qqs '^linux(-zen|-lts|-hardened|-t2|-ptl)?$' | head -1 || true)
   [[ -n $KERNEL_PACKAGE ]] && strapd-pkg-add "$KERNEL_PACKAGE-headers"
 
+  # Each branch is wholly one source or the other, so the installer is picked
+  # alongside the package list rather than the list being sorted afterwards.
   if strapd-hw-nvidia-gsp; then
     PACKAGES=(nvidia-open-dkms nvidia-utils lib32-nvidia-utils libva-nvidia-driver)
+    INSTALL=strapd-pkg-add
   elif strapd-hw-nvidia-without-gsp; then
+    # The 580xx series is AUR-only; `pacman -S` cannot resolve any of it.
     PACKAGES=(nvidia-580xx-dkms nvidia-580xx-utils lib32-nvidia-580xx-utils)
+    INSTALL=strapd-pkg-aur-add
   fi
 
   # Bail if no supported GPU
@@ -15,7 +20,7 @@ if lspci | grep -qi 'nvidia'; then
     exit 0
   fi
 
-  strapd-pkg-add "${PACKAGES[@]}"
+  "$INSTALL" "${PACKAGES[@]}"
 
   # Per-session Hyprland NVIDIA env vars are handled by default/hypr/nvidia.lua.
 

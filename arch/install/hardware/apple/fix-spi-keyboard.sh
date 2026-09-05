@@ -3,7 +3,8 @@ product_name="$(cat /sys/class/dmi/id/product_name 2>/dev/null)"
 if [[ $product_name =~ MacBook[89],1|MacBook1[02],1|MacBookPro13,[123]|MacBookPro14,[123] ]]; then
   echo "Detected MacBook with SPI keyboard"
 
-  strapd-pkg-add macbook12-spi-driver-dkms
+  # AUR, so not strapd-pkg-add: that runs `pacman -S`, which cannot resolve it.
+  strapd-pkg-aur-add macbook12-spi-driver-dkms
   sudo mkdir -p /etc/mkinitcpio.conf.d
   if [[ $product_name == "MacBook8,1" ]]; then
     echo "MODULES=(applespi spi_pxa2xx_platform spi_pxa2xx_pci)" | \

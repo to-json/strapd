@@ -3,8 +3,35 @@
 # strapd:summary=Add the named packages to the system from the AUR if they're missing. Returns false if it couldn't be done.
 # strapd:args=<packages...>
 
+# yay refuses to run as root, and install/hardware/* runs as root inside the
+# target, so every AUR package a hardware quirk needed was unreachable from the
+# one place that asked for it. Dropping to a real user is the whole fix; the
+# caller decides what is an AUR package, the same way it always did.
+
+set -uo pipefail
+
+(($#)) || exit 0
+
 if strapd-pkg-missing "$@"; then
-  yay -S --noconfirm --needed "$@" || exit 1
+  if strapd-cmd-missing yay; then
+    echo "Error: $* come from the AUR and yay is not installed" >&2
+    echo "  yay's PKGBUILD is vendored: 'strapd vendor build yay' installs it" >&2
+    exit 1
+  fi
+
+  if ((EUID == 0)); then
+    # STRAPD_INSTALL_USER is exported by strapd-apply-system and
+    # strapd-apply-hardware; SUDO_USER covers a plain `sudo strapd pkg aur add`.
+    build_user="${STRAPD_INSTALL_USER:-${SUDO_USER:-}}"
+    if [[ -z $build_user || $build_user == root ]]; then
+      echo "Error: $* come from the AUR, which cannot be built as root" >&2
+      echo "  re-run with STRAPD_INSTALL_USER set to the target user" >&2
+      exit 1
+    fi
+    sudo -u "$build_user" yay -S --noconfirm --needed "$@" || exit 1
+  else
+    yay -S --noconfirm --needed "$@" || exit 1
+  fi
 fi
 
 for pkg in "$@"; do

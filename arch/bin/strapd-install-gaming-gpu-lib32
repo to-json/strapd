@@ -10,6 +10,7 @@ set -e
 echo "Installing lib32 graphics drivers..."
 
 PACKAGES=()
+AUR_PACKAGES=()
 
 declare -A VULKAN_DRIVERS=(
   [Intel]=lib32-vulkan-intel
@@ -24,7 +25,12 @@ done
 if strapd-hw-nvidia-gsp; then
   PACKAGES+=(lib32-nvidia-utils)
 elif strapd-hw-nvidia-without-gsp; then
-  PACKAGES+=(lib32-nvidia-580xx-utils)
+  # The 580xx series is AUR-only, so it is collected separately: `pacman -S`
+  # over a list holding it fails on the whole list, lib32 Vulkan included.
+  AUR_PACKAGES+=(lib32-nvidia-580xx-utils)
 fi
 
 (( ${#PACKAGES[@]} > 0 )) && strapd-pkg-add "${PACKAGES[@]}"
+(( ${#AUR_PACKAGES[@]} > 0 )) && strapd-pkg-aur-add "${AUR_PACKAGES[@]}"
+
+exit 0
