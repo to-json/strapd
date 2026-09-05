@@ -1,7 +1,9 @@
 # Changes require a restart to take effect.
 
 # Install other terminals via Install > Terminal
-export TERMINAL=xdg-terminal-exec
+# strapd-cmd-terminal-exec hands off to xdg-terminal-exec where it is installed,
+# and picks the terminal out of xdg-terminals.list itself where it is not.
+export TERMINAL=strapd-cmd-terminal-exec
 
 # BROWSER is intentionally not exported here: session-wide, it makes xdg-settings
 # refuse to change the default browser, which breaks the browsers' own "Set as

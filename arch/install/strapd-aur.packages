@@ -31,6 +31,10 @@ ttf-ia-writer
 tuxedo-drivers-nocompatcheck-dkms
 tzupdate
 ufw-docker
+# Preferred but no longer load-bearing: strapd-cmd-terminal-exec hands off to
+# xdg-terminal-exec when it is installed and resolves xdg-terminals.list itself
+# when it is not, so an install that never reaches the AUR still opens a
+# terminal. Debian gets the real thing from its archive, NixOS from nixpkgs.
 xdg-terminal-exec
 yaru-icon-theme
 yay

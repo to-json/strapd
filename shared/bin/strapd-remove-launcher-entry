@@ -72,7 +72,7 @@ if [[ $exec_line =~ strapd-launch-webapp|strapd-webapp-handler ]]; then
   exit 0
 fi
 
-if [[ $exec_line =~ (^|[[:space:]])(\$TERMINAL|xdg-terminal-exec)[[:space:]].*-e([[:space:]]|$) ]]; then
+if [[ $exec_line =~ (^|[[:space:]])(\$TERMINAL|strapd-cmd-terminal-exec|xdg-terminal-exec)[[:space:]].*-e([[:space:]]|$) ]]; then
   STRAPD_REMOVE_NOTIFY=false strapd-tui-remove "$desktop_name"
   exit 0
 fi

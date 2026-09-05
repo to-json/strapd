@@ -3,4 +3,4 @@
 # strapd:summary=Launch a terminal in the active terminal's current directory
 # strapd:args=[command...]
 
-exec setsid uwsm-app -- xdg-terminal-exec --dir="$(strapd-cmd-terminal-cwd)" "$@"
+exec setsid uwsm-app -- strapd-cmd-terminal-exec --dir="$(strapd-cmd-terminal-cwd)" "$@"

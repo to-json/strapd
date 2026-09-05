@@ -84,7 +84,7 @@ cat >"$DESKTOP_FILE" <<EOF
 Version=1.0
 Name=$APP_NAME
 Comment=$APP_NAME
-Exec=xdg-terminal-exec --app-id=$APP_CLASS -e $APP_EXEC
+Exec=strapd-cmd-terminal-exec --app-id=$APP_CLASS -e $APP_EXEC
 Terminal=false
 Type=Application
 Icon=$ICON_VALUE

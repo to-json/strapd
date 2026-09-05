@@ -1,0 +1,199 @@
+#!/bin/bash
+
+# strapd:summary=Open the user's chosen terminal, with or without xdg-terminal-exec
+# strapd:args=[--app-id=<id>] [--title=<title>] [--dir=<path>] [--print-id] [-e <command> [args...]]
+# strapd:hidden=true
+
+# Everything in strapd that opens a terminal comes through here: $TERMINAL, the
+# launchers, and the Exec= line of every generated TUI desktop entry.
+#
+# xdg-terminal-exec is the right tool for this and does it properly, so when it
+# is installed this is a one-line passthrough. It is not always installed:
+# Debian carries it and nixpkgs has it, but on Arch it is AUR-only, and
+# arch/install.sh deliberately does not touch the AUR. Without a fallback that
+# leaves a fresh Arch install with no way to open a terminal at all -- not the
+# keybinding, not the menu, not the presentation window `strapd install` runs
+# in -- which is a worse trade than carrying the fallback below.
+#
+# The fallback implements only the part of the spec strapd actually uses:
+# resolve a desktop entry from xdg-terminals.list, then build its command line
+# from its own X-TerminalArg* keys. It is not a replacement for the real thing,
+# and it steps aside the moment the real thing is on PATH.
+
+set -uo pipefail
+
+if command -v xdg-terminal-exec &>/dev/null; then
+  exec xdg-terminal-exec "$@"
+fi
+
+app_id=""
+title=""
+dir=""
+print_id=0
+command_args=()
+
+while (($#)); do
+  case "$1" in
+    --app-id=*) app_id=${1#--app-id=} ;;
+    --title=*) title=${1#--title=} ;;
+    --dir=*) dir=${1#--dir=} ;;
+    --print-id) print_id=1 ;;
+    -e | --) shift; command_args=("$@"); break ;;
+    # Unrecognised options are dropped rather than passed through: they are
+    # xdg-terminal-exec's vocabulary, not the terminal's, and handing them to
+    # the terminal would fail the launch instead of degrading it.
+    -*) ;;
+    *) command_args=("$@"); break ;;
+  esac
+  shift
+done
+
+# The preference order, most specific first: the user's list, then the system's,
+# then strapd's own default. Same order xdg-terminal-exec reads them in, and the
+# same file `strapd default terminal` writes.
+terminal_lists() {
+  printf '%s/xdg-terminals.list\n' "${XDG_CONFIG_HOME:-$HOME/.config}"
+  local dirs dir
+  IFS=: read -ra dirs <<<"${XDG_CONFIG_DIRS:-/etc/xdg}"
+  for dir in "${dirs[@]}"; do
+    [[ -n $dir ]] && printf '%s/xdg-terminals.list\n' "$dir"
+  done
+}
+
+candidate_ids() {
+  local list
+  while read -r list; do
+    [[ -r $list ]] || continue
+    grep -vE '^[[:space:]]*(#|$)' "$list"
+  done < <(terminal_lists)
+  # strapd's four approved terminals, in the order arch/bin/strapd-install-terminal
+  # documents. Only reached when no list names one that is actually installed.
+  printf '%s\n' foot.desktop com.mitchellh.ghostty.desktop kitty.desktop Alacritty.desktop
+}
+
+data_dirs() {
+  printf '%s\n' "${XDG_DATA_HOME:-$HOME/.local/share}"
+  local dirs dir
+  IFS=: read -ra dirs <<<"${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+  for dir in "${dirs[@]}"; do
+    [[ -n $dir ]] && printf '%s\n' "$dir"
+  done
+}
+
+# A desktop id is looked for by name under each data dir's applications/.
+desktop_file_for() {
+  local id=$1 dir
+  while read -r dir; do
+    [[ -f "$dir/applications/$id" ]] && { printf '%s\n' "$dir/applications/$id"; return 0; }
+  done < <(data_dirs)
+  return 1
+}
+
+# Values from the [Desktop Entry] group only; a [Desktop Action] further down
+# carries its own Exec= that is not the one to launch.
+entry_value() {
+  local file=$1 key=$2
+  awk -v key="$key" '
+    /^[[:space:]]*\[/ { in_entry = ($0 ~ /^[[:space:]]*\[Desktop Entry\]/); next }
+    !in_entry { next }
+    index($0, key "=") == 1 { print substr($0, length(key) + 2); exit }
+  ' "$file"
+}
+
+# The binary a desktop entry runs. TryExec is the honest answer when present;
+# otherwise the first word of Exec, which puts its field codes behind it.
+entry_binary() {
+  local file=$1 bin
+  bin=$(entry_value "$file" TryExec)
+  [[ -n $bin ]] || bin=$(entry_value "$file" Exec)
+  printf '%s\n' "${bin%% *}"
+}
+
+# X-TerminalArg* defaults for the terminals strapd approves, used when the
+# installed desktop entry carries no such keys of its own. strapd ships entries
+# with them for foot and alacritty; ghostty's and kitty's come from upstream
+# without them.
+set_builtin_args() {
+  case "$1" in
+    foot) arg_exec='-e' arg_app_id='--app-id=' arg_title='--title=' arg_dir='--working-directory=' ;;
+    alacritty) arg_exec='-e' arg_app_id='--class=' arg_title='--title=' arg_dir='--working-directory=' ;;
+    ghostty) arg_exec='-e' arg_app_id='--class=' arg_title='--title=' arg_dir='--working-directory=' ;;
+    # kitty takes its command as trailing arguments; it has no -e.
+    kitty) arg_exec='' arg_app_id='--class=' arg_title='--title=' arg_dir='--directory=' ;;
+    *) arg_exec='-e' arg_app_id='' arg_title='--title=' arg_dir='' ;;
+  esac
+}
+
+resolved_id=""
+resolved_bin=""
+arg_exec="" arg_app_id="" arg_title="" arg_dir=""
+
+while read -r id; do
+  [[ -n $id ]] || continue
+  file=$(desktop_file_for "$id") || continue
+  bin=$(entry_binary "$file")
+  [[ -n $bin ]] || continue
+  command -v "$bin" &>/dev/null || continue
+
+  set_builtin_args "$(basename "$bin")"
+  for key in Exec AppId Title Dir; do
+    value=$(entry_value "$file" "X-TerminalArg$key")
+    [[ -n $value ]] || continue
+    case "$key" in
+      Exec) arg_exec=$value ;;
+      AppId) arg_app_id=$value ;;
+      Title) arg_title=$value ;;
+      Dir) arg_dir=$value ;;
+    esac
+  done
+
+  resolved_id=$id
+  resolved_bin=$bin
+  break
+done < <(candidate_ids)
+
+# Last resort: a terminal that is installed but that no desktop entry could be
+# found for. Better a terminal with default styling than no terminal.
+if [[ -z $resolved_bin ]]; then
+  for bin in foot ghostty kitty alacritty; do
+    if command -v "$bin" &>/dev/null; then
+      resolved_bin=$bin
+      set_builtin_args "$bin"
+      break
+    fi
+  done
+fi
+
+if ((print_id)); then
+  printf '%s\n' "$resolved_id"
+  [[ -n $resolved_id ]]
+  exit
+fi
+
+[[ -n $resolved_bin ]] || {
+  echo "strapd-cmd-terminal-exec: no terminal emulator found; install one with 'strapd install terminal'" >&2
+  exit 3
+}
+
+# An argument key ending in '=' or ':' takes its value joined on, the way the
+# spec reads the X-TerminalArg* keys; anything else is a separate argument.
+argv=("$resolved_bin")
+append_arg() {
+  local key=$1 value=$2
+  [[ -n $key && -n $value ]] || return 0
+  case "$key" in
+    *= | *:) argv+=("$key$value") ;;
+    *) argv+=("$key" "$value") ;;
+  esac
+}
+
+append_arg "$arg_app_id" "$app_id"
+append_arg "$arg_title" "$title"
+append_arg "$arg_dir" "$dir"
+
+if ((${#command_args[@]})); then
+  [[ -n $arg_exec ]] && argv+=("$arg_exec")
+  argv+=("${command_args[@]}")
+fi
+
+exec "${argv[@]}"

@@ -11,7 +11,9 @@ DESKTOP_DIR="$HOME/.local/share/applications/"
 
 if (( $# == 0 )); then
   while IFS= read -r -d '' file; do
-    if grep -qE '^Exec=.*(\$TERMINAL|xdg-terminal-exec).*-e' "$file"; then
+    # xdg-terminal-exec is still matched: entries written before strapd routed
+    # terminal launches through its own wrapper name it directly.
+    if grep -qE '^Exec=.*(\$TERMINAL|strapd-cmd-terminal-exec|xdg-terminal-exec).*-e' "$file"; then
       TUIS+=("$(basename "${file%.desktop}")")
     fi
   done < <(find "$DESKTOP_DIR" -name '*.desktop' -print0)

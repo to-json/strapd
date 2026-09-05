@@ -10,4 +10,4 @@ source strapd-restart-gum
 cmd="$*"
 presentation_script="strapd-show-logo; $cmd; if (( \$? != 130 )); then strapd-show-done; fi"
 
-exec setsid uwsm-app -- xdg-terminal-exec --app-id=org.strapd.terminal --title=strapd -e bash -c "$presentation_script"
+exec setsid uwsm-app -- strapd-cmd-terminal-exec --app-id=org.strapd.terminal --title=strapd -e bash -c "$presentation_script"

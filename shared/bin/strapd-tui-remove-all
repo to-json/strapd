@@ -12,7 +12,9 @@ echo "Scanning for TUIs in $APP_DIR..."
 
 tui_desktop_files=()
 while IFS= read -r -d '' file; do
-  if grep -q "Exec=xdg-terminal-exec --app-id=TUI\." "$file" 2>/dev/null; then
+  # The older name is still matched: entries written before strapd routed
+  # terminal launches through its own wrapper name xdg-terminal-exec directly.
+  if grep -qE "Exec=(strapd-cmd-terminal-exec|xdg-terminal-exec) --app-id=TUI\." "$file" 2>/dev/null; then
     tui_desktop_files+=("$file")
   fi
 done < <(find "$APP_DIR" -maxdepth 1 -name "*.desktop" -print0 2>/dev/null)

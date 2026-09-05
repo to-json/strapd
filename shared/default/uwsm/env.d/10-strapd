@@ -28,7 +28,7 @@ export XCURSOR_SIZE=24
 if [ -f "${STRAPD_PATH%/}/default/uwsm/default" ]; then
   . "${STRAPD_PATH%/}/default/uwsm/default"
 else
-  export TERMINAL=xdg-terminal-exec
+  export TERMINAL=strapd-cmd-terminal-exec
   export EDITOR="strapd-launch-editor --inline"
 fi
 

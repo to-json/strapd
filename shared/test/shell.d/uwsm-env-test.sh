@@ -47,7 +47,7 @@ pass "the session pushes Electron onto Wayland"
   fail "the session sets a cursor size" "XCURSOR_SIZE=$(value_of XCURSOR_SIZE)"
 pass "the session sets a cursor size"
 
-[[ $(value_of TERMINAL) == "xdg-terminal-exec" ]] ||
+[[ $(value_of TERMINAL) == "strapd-cmd-terminal-exec" ]] ||
   fail "the session's defaults reach it" "TERMINAL=$(value_of TERMINAL)"
 pass "the session's defaults reach it"
 

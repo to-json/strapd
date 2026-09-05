@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# strapd:summary=Set the default terminal used by xdg-terminal-exec
+# strapd:summary=Set the default terminal strapd opens
 # strapd:args=[alacritty|foot|ghostty|kitty]
 # strapd:examples=strapd default terminal ghostty | strapd default terminal kitty
 
@@ -11,7 +11,7 @@ if [[ ${1:-} == "--install" ]]; then
 fi
 
 if (($# == 0)); then
-  desktop_id=$(xdg-terminal-exec --print-id 2>/dev/null || true)
+  desktop_id=$(strapd-cmd-terminal-exec --print-id 2>/dev/null || true)
   desktop_id=${desktop_id%%:*}
   case "$desktop_id" in
   Alacritty.desktop) echo "alacritty" ;;

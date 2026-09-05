@@ -1,7 +1,7 @@
 [Desktop Entry]
 Version=1.0
 Name=Docker
-Exec=xdg-terminal-exec --app-id=TUI.tile -e strapd-launch-docker-tui
+Exec=strapd-cmd-terminal-exec --app-id=TUI.tile -e strapd-launch-docker-tui
 Terminal=false
 Type=Application
 Icon=docker
