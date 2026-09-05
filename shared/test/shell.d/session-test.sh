@@ -136,6 +136,8 @@ missing_line=$(grep -n 'is not installed' "$ROOT/bin/strapd-session" | head -1 |
     "said at line $missing_line, before the log starts at $redirect_line"
 pass "a missing compositor is reported into the session log"
 
-grep -q 'yay -S mangowc' <<<"$session_body" ||
+# Not `yay -S mangowc`: that package was renamed to mangowm and the old name
+# 404s, so the advice this used to assert on had quietly stopped working.
+grep -q 'strapd vendor build mangowm' <<<"$session_body" ||
   fail "mango's message says where to get it, since it is not in the repos"
 pass "mango's message says where to get it"

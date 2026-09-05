@@ -1,0 +1,72 @@
+#!/bin/bash
+
+# strapd:summary=Regenerate the greeter's session list from the compositors that are installed
+# strapd:group=refresh
+# strapd:name=sessions
+# strapd:requires-sudo=true
+
+# tuigreet with nothing remembered starts on the first session in the list, and
+# the list is the directory in alphabetical order: strapd-mango, strapd-niri,
+# strapd-sway. So the machine's out-of-the-box default was MangoWC, the one
+# compositor not in the official repos -- and, once `mangowc` was renamed in the
+# AUR, the one nothing could install. First boot landed on a session that could
+# not start, which reads as a broken install rather than a missing package.
+#
+# The compositor being installed is now the normal case (its PKGBUILD is
+# vendored and install.sh builds it), so this is the safety net rather than the
+# fix: offer a session only when the thing it starts is actually there.
+#
+# Re-runnable on purpose. Build a compositor later, run this, and its session
+# comes back; it is called from install/login/all.sh on every `strapd apply
+# system`, so that happens on its own.
+
+set -euo pipefail
+
+STRAPD_PATH="${STRAPD_PATH:-/usr/share/strapd}"
+source_dir="$STRAPD_PATH/default/wayland-sessions"
+target_dir="${STRAPD_SESSIONS_DIR:-$STRAPD_PATH/wayland-sessions}"
+
+[[ -d $source_dir ]] || {
+  echo "strapd-refresh-sessions: no sessions at $source_dir" >&2
+  exit 1
+}
+
+available=()
+missing=()
+
+for session in "$source_dir"/*.desktop; do
+  [[ -e $session ]] || continue
+  # TryExec is the desktop entry's own statement of what it needs; every strapd
+  # session file names its compositor there.
+  binary=$(sed -n 's/^TryExec=//p' "$session" | head -1)
+  if [[ -z $binary ]] || strapd-cmd-present "$binary"; then
+    available+=("$session")
+  else
+    missing+=("$session")
+  fi
+done
+
+# A greeter with no sessions at all offers the user nothing and is strictly
+# worse than one offering a session that might not start. If nothing survived
+# the check, ship them all and let strapd-session report what is wrong.
+if ((!${#available[@]})); then
+  available=("$source_dir"/*.desktop)
+  missing=()
+fi
+
+mkdir -p "$target_dir"
+for session in "$target_dir"/*.desktop; do
+  [[ -e $session ]] && rm -f "$session"
+done
+
+for session in "${available[@]}"; do
+  install -Dm644 "$session" "$target_dir/$(basename "$session")"
+done
+
+if ((${#missing[@]})); then
+  for session in "${missing[@]}"; do
+    echo "strapd-refresh-sessions: not offering $(basename "${session%.desktop}"): its compositor is not installed"
+  done
+fi
+
+exit 0

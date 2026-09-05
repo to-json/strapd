@@ -19,6 +19,12 @@
 
 install -Dm644 "$STRAPD_PATH/etc/greetd/config.toml" /etc/greetd/config.toml
 
+# tuigreet starts on the first session in the list, so a compositor that is not
+# installed must not be in it. That matters more here than on Arch: trixie
+# carries sway and neither niri nor mango, so two of the three sessions are
+# absent on a stock install and the first one alphabetically is one of them.
+strapd-refresh-sessions | while IFS= read -r line; do strapd_log_line "Login: $line"; done
+
 # Point the greeter at the greetd user this distribution's package created.
 # Prefer _greetd (Debian); fall back to greeter (in case a future image matches
 # Arch). Only rewrite when the shipped user is absent and the alternative is

@@ -57,8 +57,11 @@ echo "strapd-session: starting $fancy_name at $(date -Is)"
 # ignores TryExec will offer it anyway.
 if ! strapd-cmd-present "$compositor"; then
   echo "strapd-session: $fancy_name is not installed."
+  # mangowc was renamed to mangowm in the AUR and the old name now 404s, so the
+  # advice that used to be here -- `yay -S mangowc` -- had stopped working. The
+  # PKGBUILD is vendored precisely so this no longer depends on the AUR index.
   [[ $compositor == mango ]] &&
-    echo "strapd-session: it is in the AUR rather than the repos: yay -S mangowc"
+    echo "strapd-session: build it with: strapd vendor build mangowm"
   exit 1
 fi
 
