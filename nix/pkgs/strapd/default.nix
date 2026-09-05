@@ -57,7 +57,7 @@ stdenvNoCC.mkDerivation {
     # A few shared files still name Arch-only functionality that lives in arch/
     # and so is absent here. First, the dispatcher's help entries for groups
     # whose members are all in arch/bin.
-    sed -i -E '/^GROUP_DESCRIPTIONS\[(pkg|update|channel|snapshot|install|plymouth|reinstall|setup)\]=/d' \
+    sed -i -E '/^GROUP_DESCRIPTIONS\[(pkg|update|channel|snapshot|install|plymouth|reinstall|setup|vendor)\]=/d' \
       $out/share/strapd/bin/strapd
 
     # The seeded compositor autostart spawns strapd-provision-first-run (an

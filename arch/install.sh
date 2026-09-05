@@ -13,9 +13,10 @@
 #   4. `strapd apply system`, the existing entry point for everything
 #      root-owned: hardware detection, services, firewall, snapshots, login
 #
-# It does not install from the AUR. MangoWC is the only one of the three
-# compositors not in the official repos, and requiring an AUR helper would be
-# paying for mango whether or not you want it. The note at the end says how.
+# The AUR half does not come through a helper. MangoWC is the only one of the
+# three compositors not in the official repos, and it, xdg-terminal-exec, yay
+# and the rest are built from the PKGBUILDs vendored in vendor/ -- see
+# bin/strapd-vendor-build for why that rather than `yay -S`.
 
 set -euo pipefail
 
@@ -95,6 +96,22 @@ mapfile -t packages < <(grep -vE '^\s*(#|$)' "$REPO/install/strapd-base.packages
 # packages, which is most of what makes this safe to run twice.
 sudo pacman -S --needed --noconfirm "${packages[@]}"
 
+step "Building the vendored AUR packages"
+
+# The AUR half of the package set, built from PKGBUILDs kept in vendor/ rather
+# than pulled through a helper: install/* runs as root inside the target and yay
+# refuses to run as root, so this was the piece with no route in. It is also
+# what makes the MangoWC session real rather than an entry in the greeter that
+# cannot start.
+#
+# Not fatal. Everything the base desktop needs to reach a login is in the repo
+# packages above, and one PKGBUILD that will not build should cost its own
+# package rather than the install.
+if ! STRAPD_VENDOR_DIR="$REPO/vendor" "$REPO/bin/strapd-vendor-build"; then
+  echo "install.sh: some vendored packages did not build (see above)." >&2
+  echo "install.sh: retry one at a time with: strapd vendor build <package>" >&2
+fi
+
 step "Installing the repo at $TARGET"
 
 # Shared with the ISO installer, which does exactly this into a chroot.
@@ -124,9 +141,10 @@ cat <<DONE
 Log out and pick a session: strapd (Niri), strapd (Sway), or strapd (MangoWC).
 The first login finishes setup and shows you the keybindings.
 
-Niri and Sway came from the official repos. MangoWC did not; it is in the
-AUR, so if you want that one:
+Niri and Sway came from the official repos. MangoWC came from vendor/, built
+during the install. If its build was one of the ones that failed, that session
+will not start until you retry it:
 
-  yay -S mangowc
+  strapd vendor build mangowm
 
 DONE

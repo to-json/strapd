@@ -1,0 +1,32 @@
+pkgbase = limine-mkinitcpio-hook
+	pkgdesc = Install kernels for the Limine bootloader.
+	pkgver = 1.38.0
+	pkgrel = 1
+	url = https://gitlab.com/Zesko/limine-entry-tool
+	arch = x86_64
+	arch = aarch64
+	license = GPL3
+	makedepends = git
+	makedepends = gradle
+	depends = bash
+	depends = grep
+	depends = tar
+	depends = limine
+	depends = mkinitcpio
+	depends = efibootmgr
+	optdepends = kernel-modules-hook: Safely keeps kernel on upgrade failure
+	optdepends = sbctl: Signs UEFI boot files for Secure Boot when enabled
+	optdepends = journalctl-desktop-notification: Sends desktop notifications when errors occur
+	provides = limine-entry-tool
+	conflicts = limine-entry-tool
+	options = !debug
+	options = !strip
+	backup = etc/limine-entry-tool.conf
+	source = limine-entry-tool::git+https://gitlab.com/Zesko/limine-entry-tool.git#tag=1.38.0
+	sha256sums = 11dd8211898585f79d8361d97606965bb2ca214dccace5b133dc5121e4bb4d01
+	source_x86_64 = https://github.com/graalvm/graalvm-ce-builds/releases/download/graal-25.2.4/graalvm-community-jdk-25i2-25.0.4_linux-x64_bin.tar.gz
+	sha256sums_x86_64 = 3f4a89de8eaa96f2ed677f09957c7e872cd8467aad3537f8b5394c1b8c4b942e
+	source_aarch64 = https://github.com/graalvm/graalvm-ce-builds/releases/download/graal-25.2.4/graalvm-community-jdk-25i2-25.0.4_linux-aarch64_bin.tar.gz
+	sha256sums_aarch64 = 22286f7ecd21b9aedb3226b9bf797469e1bd3eefc491e12ef3dd49b452d230b7
+
+pkgname = limine-mkinitcpio-hook

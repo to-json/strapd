@@ -1,41 +1,45 @@
 # Packages strapd installs from the AUR, kept apart from strapd-base.packages
-# because they are built on the target rather than pulled from a repo. yay is in
-# here and is also what installs the rest, so it has to be bootstrapped from its
-# PKGBUILD first; nothing else in this file can be resolved before it exists.
+# because they are built on the target rather than pulled from a repo.
 #
-# Hardware-conditional AUR packages are listed here too so the ISO builder sees
-# them, even though install/hardware/* only reaches for them on matching machines.
+# Only the hardware-conditional ones are left here. Everything else strapd needs
+# from the AUR is vendored: its PKGBUILD lives in arch/vendor/ and is built by
+# `strapd vendor build`, which install.sh runs. See vendor/manifest.tsv for that
+# set and vendor/README.md for why.
 #
-# Nothing here can be installed by strapd-pkg-add: it runs `pacman -S`, and
-# install/* calls it as root inside the target, where yay refuses to run at all.
-# So this file is a list of what needs building, not something install/* can act
-# on. Where that build happens, a repo, a chroot step in the ISO build, or a
-# first-boot pass as the user, is still undecided.
+# What is listed below is installed by install/hardware/*, only on a machine
+# that matches, through strapd-pkg-add -> strapd-pkg-aur-add. It is not vendored
+# because none of it is wanted on a machine without the hardware, and a DKMS
+# tree or an NVIDIA driver is a large thing to carry in the repo for the small
+# number of machines that need it.
+#
+# These do need yay, which is vendored, so it exists by the time any of this
+# runs. On a machine where it does not, strapd-pkg-aur-add says so and the
+# hardware pass reports that one quirk rather than dying.
 
-aether
+# --- ASUS ROG laptops ---
 asusctl
-cliamp
-herdr
-lib32-nvidia-580xx-utils
-limine-mkinitcpio-hook
-limine-snapper-sync
-localsend
-macbook12-spi-driver-dkms
-mangowc
-mise-bin
+
+# --- NVIDIA cards too old for the open kernel modules (no GSP) ---
 nvidia-580xx-dkms
 nvidia-580xx-utils
-qmk-hid
-tensaku
-ttf-ia-writer
+lib32-nvidia-580xx-utils
+
+# --- Apple MacBooks with an SPI keyboard ---
+macbook12-spi-driver-dkms
+
+# --- TUXEDO / Clevo / Slimbook keyboard backlight ---
 tuxedo-drivers-nocompatcheck-dkms
-tzupdate
-ufw-docker
-# Preferred but no longer load-bearing: strapd-cmd-terminal-exec hands off to
-# xdg-terminal-exec when it is installed and resolves xdg-terminals.list itself
-# when it is not, so an install that never reaches the AUR still opens a
-# terminal. Debian gets the real thing from its archive, NixOS from nixpkgs.
-xdg-terminal-exec
-yaru-icon-theme
-yay
+
+# --- Motorcomm YT6801 ethernet ---
 yt6801-dkms
+
+# --- Framework 16 QMK HID ---
+qmk-hid
+
+# --- Not currently installable ---
+# yaru-icon-theme was here, and install/config/theme-system.sh and
+# install/user/first-run/gnome-theme.sh both still expect /usr/share/icons/Yaru.
+# Its AUR git repo is empty as of the last vendor refresh (the package page
+# resolves, the repo has no refs), so there is nothing to install or to vendor.
+# The icon lookups fall back rather than fail, so this is a cosmetic gap, but it
+# is a gap: yaru-icon-theme-git is empty too, and no other package provides it.

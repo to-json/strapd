@@ -1,0 +1,140 @@
+#!/bin/bash
+
+# strapd:summary=Re-pull the vendored AUR PKGBUILDs from today's AUR
+# strapd:group=vendor
+# strapd:name=refresh
+# strapd:args=[package...]
+# strapd:examples=strapd vendor refresh | strapd vendor refresh mangowm
+
+# The other half of `strapd vendor build`: what put arch/vendor/ there, and what
+# moves it forward. A development tool, run against a dev-linked checkout so the
+# result is a diff somebody reads before it ships, never on an installed tree.
+#
+# Named packages are pulled along with anything they are built on that pacman
+# cannot resolve from the official repos, so adding one AUR package that depends
+# on another does not silently leave a build that cannot complete. That is how
+# scenefx0.5 and zig0.15 arrived: nothing asked for them, mangowm and herdr did.
+
+set -euo pipefail
+
+VENDOR_DIR="${STRAPD_VENDOR_DIR:-${STRAPD_PATH:-/usr/share/strapd}/vendor}"
+MANIFEST="$VENDOR_DIR/manifest.tsv"
+
+usage() {
+  cat <<'USAGE'
+Usage: strapd vendor refresh [package...]
+
+Re-pulls the vendored AUR PKGBUILDs at today's AUR HEAD, following build
+dependencies that are themselves only in the AUR. With no package named,
+refreshes everything already in the manifest.
+
+Run it against a checkout (strapd dev link), not an installed tree: it rewrites
+arch/vendor/ and the result is meant to be reviewed as a diff.
+USAGE
+}
+
+seeds=()
+while (($#)); do
+  case "$1" in
+    -h | --help) usage; exit 0 ;;
+    -*) echo "strapd-vendor-refresh: unknown option '$1'" >&2; usage >&2; exit 1 ;;
+    *) seeds+=("$1") ;;
+  esac
+  shift
+done
+
+[[ -d $VENDOR_DIR ]] || {
+  echo "strapd-vendor-refresh: no vendor directory at $VENDOR_DIR" >&2
+  exit 1
+}
+
+if ((!${#seeds[@]})); then
+  [[ -f $MANIFEST ]] || {
+    echo "strapd-vendor-refresh: no manifest at $MANIFEST and no package named" >&2
+    exit 1
+  }
+  while IFS=$'\t' read -r name _rest; do
+    [[ -n $name && $name != \#* ]] && seeds+=("$name")
+  done <"$MANIFEST"
+fi
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+dep_name() { printf '%s\n' "${1%%[<>=]*}"; }
+
+# In the official repos, directly or as something a repo package provides. Those
+# are pacman's problem at build time, not ours to vendor.
+in_official_repos() {
+  pacman -Si "$1" &>/dev/null
+}
+
+aur_has() {
+  [[ -n $(git ls-remote "https://aur.archlinux.org/$1.git" 2>/dev/null) ]]
+}
+
+declare -A PULLED=()
+declare -A VERSION=()
+declare -A COMMIT=()
+queue=("${seeds[@]}")
+
+while ((${#queue[@]})); do
+  pkg=${queue[0]}
+  queue=("${queue[@]:1}")
+  [[ -z ${PULLED[$pkg]:-} ]] || continue
+
+  if ! git clone --quiet "https://aur.archlinux.org/$pkg.git" "$work/$pkg" 2>/dev/null ||
+     [[ ! -f $work/$pkg/.SRCINFO ]]; then
+    # An AUR package can be renamed or deleted out from under a manifest; that
+    # is the whole reason the PKGBUILDs live in the tree, so say so loudly
+    # rather than quietly shipping one fewer package than the manifest claims.
+    echo "strapd-vendor-refresh: '$pkg' is no longer in the AUR" >&2
+    echo "  the vendored copy is left alone; find its new name and refresh that" >&2
+    continue
+  fi
+
+  PULLED[$pkg]=1
+  COMMIT[$pkg]=$(git -C "$work/$pkg" rev-parse HEAD)
+  VERSION[$pkg]=$(awk -F' = ' '
+    /^[[:space:]]*pkgver = / { v = $2 }
+    /^[[:space:]]*pkgrel = / { r = $2 }
+    END { print v "-" r }' "$work/$pkg/.SRCINFO")
+
+  while read -r spec; do
+    [[ -n $spec ]] || continue
+    dep=$(dep_name "$spec")
+    [[ -z ${PULLED[$dep]:-} ]] || continue
+    in_official_repos "$dep" && continue
+    if aur_has "$dep"; then
+      echo "  $pkg is built on $dep, which is AUR-only; vendoring it too"
+      queue+=("$dep")
+    else
+      echo "  warning: $pkg needs '$dep', which is in neither the repos nor the AUR" >&2
+    fi
+  done < <(awk -F' = ' '
+    $1 ~ /^[[:space:]]*(depends|makedepends)$/ { print $2 }' "$work/$pkg/.SRCINFO")
+done
+
+((${#PULLED[@]})) || {
+  echo "strapd-vendor-refresh: nothing was pulled" >&2
+  exit 1
+}
+
+for pkg in "${!PULLED[@]}"; do
+  rm -rf "${VENDOR_DIR:?}/$pkg"
+  mkdir -p "$VENDOR_DIR/$pkg"
+  # Everything the AUR repo carries except its git metadata: the PKGBUILD, the
+  # .SRCINFO the build order is read from, and any patches or .install files.
+  (cd "$work/$pkg" && tar cf - --exclude=.git .) | (cd "$VENDOR_DIR/$pkg" && tar xf -)
+  echo "vendored $pkg ${VERSION[$pkg]}"
+done
+
+{
+  printf '# Vendored AUR package sources. Regenerate with: strapd vendor refresh\n'
+  printf '# name\tversion\taur-commit\tvendored-on\n'
+  for pkg in $(printf '%s\n' "${!PULLED[@]}" | sort); do
+    printf '%s\t%s\t%s\t%s\n' "$pkg" "${VERSION[$pkg]}" "${COMMIT[$pkg]}" "$(date -u +%Y-%m-%d)"
+  done
+} >"$MANIFEST"
+
+echo "Manifest written: $MANIFEST"

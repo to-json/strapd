@@ -1,0 +1,273 @@
+#!/bin/bash
+
+# strapd:summary=Build and install the vendored AUR packages
+# strapd:group=vendor
+# strapd:name=build
+# strapd:args=[--list] [--force] [package...]
+# strapd:examples=strapd vendor build | strapd vendor build mangowm
+# strapd:requires-sudo=true
+
+# The AUR packages strapd needs, built from PKGBUILDs kept in the tree rather
+# than pulled at install time.
+#
+# Why vendored rather than `yay -S`: install/* runs as root inside the target,
+# and yay refuses to run as root at all, so the AUR set was unreachable from the
+# one place that needed it. It also decouples the install from the AUR index,
+# which moves underneath us -- `mangowc` was renamed to `mangowm` and the old
+# name now 404s, so every install telling people to run `yay -S mangowc` was
+# telling them to run something that fails.
+#
+# makepkg also refuses to run as root, so the build drops to a real user and
+# only the dependency install and the final `pacman -U` stay privileged.
+
+set -euo pipefail
+
+VENDOR_DIR="${STRAPD_VENDOR_DIR:-${STRAPD_PATH:-/usr/share/strapd}/vendor}"
+MANIFEST="$VENDOR_DIR/manifest.tsv"
+
+list_only=0
+force=0
+requested=()
+
+usage() {
+  cat <<'USAGE'
+Usage: strapd vendor build [--list] [--force] [package...]
+
+Builds the vendored AUR packages and installs the results. With no package
+named, builds everything in the manifest that is not already installed at the
+vendored version.
+
+  --list    show the manifest and what is installed, then exit
+  --force   rebuild even when the vendored version is already installed
+USAGE
+}
+
+while (($#)); do
+  case "$1" in
+    --list) list_only=1 ;;
+    --force) force=1 ;;
+    -h | --help) usage; exit 0 ;;
+    -*) echo "strapd-vendor-build: unknown option '$1'" >&2; usage >&2; exit 1 ;;
+    *) requested+=("$1") ;;
+  esac
+  shift
+done
+
+[[ -f $MANIFEST ]] || {
+  echo "strapd-vendor-build: no manifest at $MANIFEST" >&2
+  exit 1
+}
+
+# name -> vendored version, in manifest order (which is only alphabetical; the
+# build order is worked out from the PKGBUILDs below).
+names=()
+declare -A VERSION=()
+while IFS=$'\t' read -r name version _commit _date; do
+  [[ -n $name && $name != \#* ]] || continue
+  names+=("$name")
+  VERSION["$name"]=$version
+done <"$MANIFEST"
+
+installed_version() {
+  pacman -Q "$1" 2>/dev/null | awk '{print $2}'
+}
+
+if ((list_only)); then
+  printf '%-24s %-18s %s\n' PACKAGE VENDORED INSTALLED
+  for name in "${names[@]}"; do
+    printf '%-24s %-18s %s\n' "$name" "${VERSION[$name]}" "$(installed_version "$name" || true)"
+  done
+  exit 0
+fi
+
+srcinfo_field() {
+  local pkg=$1 field=$2
+  awk -F' = ' -v f="$field" '$1 ~ "^[[:space:]]*"f"$" {print $2}' "$VENDOR_DIR/$pkg/.SRCINFO" 2>/dev/null
+}
+
+# Version constraints and soname suffixes are the PKGBUILD's vocabulary, not
+# pacman's: `pacman -S 'wayland>=1.23.1'` is not a package name.
+dep_name() {
+  printf '%s\n' "${1%%[<>=]*}"
+}
+
+# Which of a package's dependencies are themselves vendored, so the build order
+# can put them first. Matched on pkgname and on what each vendored package
+# declares it provides.
+declare -A PROVIDER=()
+for name in "${names[@]}"; do
+  PROVIDER["$name"]=$name
+  while read -r provided; do
+    [[ -n $provided ]] || continue
+    PROVIDER["$(dep_name "$provided")"]=$name
+  done < <(srcinfo_field "$name" provides)
+done
+
+vendored_deps() {
+  local pkg=$1 dep bare
+  while read -r dep; do
+    [[ -n $dep ]] || continue
+    bare=$(dep_name "$dep")
+    [[ -n ${PROVIDER[$bare]:-} ]] || continue
+    [[ ${PROVIDER[$bare]} != "$pkg" ]] || continue
+    printf '%s\n' "${PROVIDER[$bare]}"
+  done < <(srcinfo_field "$pkg" depends; srcinfo_field "$pkg" makedepends)
+}
+
+# The build set: what was asked for, plus whatever it is built on top of.
+declare -A WANTED=()
+if ((${#requested[@]})); then
+  queue=("${requested[@]}")
+  while ((${#queue[@]})); do
+    pkg=${queue[0]}
+    queue=("${queue[@]:1}")
+    [[ -n ${VERSION[$pkg]:-} ]] || {
+      echo "strapd-vendor-build: '$pkg' is not in the manifest" >&2
+      exit 1
+    }
+    [[ -z ${WANTED[$pkg]:-} ]] || continue
+    WANTED[$pkg]=1
+    while read -r dep; do
+      [[ -n $dep ]] && queue+=("$dep")
+    done < <(vendored_deps "$pkg")
+  done
+else
+  for name in "${names[@]}"; do WANTED["$name"]=1; done
+fi
+
+# Dependency order: emit a package once everything vendored that it is built on
+# has been emitted. The graph is shallow (scenefx0.5 before mangowm, zig0.15
+# before herdr), so a cycle means a bad PKGBUILD rather than a hard problem.
+order=()
+declare -A EMITTED=()
+remaining=()
+for name in "${names[@]}"; do
+  [[ -n ${WANTED[$name]:-} ]] && remaining+=("$name")
+done
+
+while ((${#remaining[@]})); do
+  progressed=0
+  next=()
+  for pkg in "${remaining[@]}"; do
+    ready=1
+    while read -r dep; do
+      [[ -n $dep ]] || continue
+      [[ -n ${WANTED[$dep]:-} ]] || continue
+      [[ -n ${EMITTED[$dep]:-} ]] || ready=0
+    done < <(vendored_deps "$pkg")
+    if ((ready)); then
+      order+=("$pkg")
+      EMITTED[$pkg]=1
+      progressed=1
+    else
+      next+=("$pkg")
+    fi
+  done
+  # The ${a[@]+...} form because an empty array under `set -u` is an error on
+  # the bash the test host runs, and the last pass always empties this one.
+  remaining=(${next[@]+"${next[@]}"})
+  ((progressed)) || {
+    echo "strapd-vendor-build: dependency cycle among: ${remaining[*]}" >&2
+    exit 1
+  }
+done
+
+# makepkg refuses to run as root. When this runs from the installer we are root
+# and STRAPD_INSTALL_USER names the person being installed for; run by hand it
+# is either a sudo session or already an ordinary user.
+build_user="${STRAPD_VENDOR_BUILD_USER:-${STRAPD_INSTALL_USER:-${SUDO_USER:-}}}"
+if ((EUID != 0)); then
+  build_user=$(id -un)
+elif [[ -z $build_user || $build_user == root ]]; then
+  echo "strapd-vendor-build: needs a non-root user to build as; pass one in" >&2
+  echo "  STRAPD_INSTALL_USER=<user> strapd vendor build" >&2
+  exit 1
+fi
+
+as_root() {
+  if ((EUID == 0)); then
+    "$@"
+  else
+    sudo "$@"
+  fi
+}
+
+run_makepkg() {
+  local dir=$1
+  if [[ $(id -un) == "$build_user" ]]; then
+    (cd "$dir" && makepkg --nodeps --noconfirm --clean)
+  else
+    sudo -u "$build_user" bash -c 'cd "$1" && makepkg --nodeps --noconfirm --clean' _ "$dir"
+  fi
+}
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+chmod 0755 "$work"
+
+built=()
+skipped=()
+failed=()
+
+for pkg in ${order[@]+"${order[@]}"}; do
+  want=${VERSION[$pkg]}
+  have=$(installed_version "$pkg" || true)
+  if [[ $have == "$want" ]] && ((!force)); then
+    skipped+=("$pkg")
+    continue
+  fi
+
+  echo "==> Building $pkg $want"
+
+  # makepkg builds in place, so it gets a copy rather than the installed tree.
+  pkgdir="$work/$pkg"
+  mkdir -p "$pkgdir"
+  cp -a "$VENDOR_DIR/$pkg/." "$pkgdir/"
+  chown -R "$build_user" "$pkgdir" 2>/dev/null || true
+
+  # Dependencies are installed here rather than by makepkg --syncdeps, which
+  # would need the build user to hold sudo of its own. Vendored ones are
+  # already built and installed by the time we get here.
+  deps=()
+  while read -r dep; do
+    [[ -n $dep ]] || continue
+    bare=$(dep_name "$dep")
+    [[ -z ${PROVIDER[$bare]:-} ]] || continue
+    deps+=("$bare")
+  done < <(srcinfo_field "$pkg" depends; srcinfo_field "$pkg" makedepends)
+
+  if ((${#deps[@]})); then
+    as_root pacman -S --needed --noconfirm --asdeps "${deps[@]}" || {
+      echo "strapd-vendor-build: could not install dependencies for $pkg" >&2
+      failed+=("$pkg")
+      continue
+    }
+  fi
+
+  if ! run_makepkg "$pkgdir"; then
+    echo "strapd-vendor-build: $pkg failed to build" >&2
+    failed+=("$pkg")
+    continue
+  fi
+
+  mapfile -t artifacts < <(find "$pkgdir" -maxdepth 1 -name '*.pkg.tar.*' ! -name '*.sig')
+  if ((!${#artifacts[@]})); then
+    echo "strapd-vendor-build: $pkg built nothing installable" >&2
+    failed+=("$pkg")
+    continue
+  fi
+
+  if as_root pacman -U --noconfirm "${artifacts[@]}"; then
+    built+=("$pkg")
+  else
+    failed+=("$pkg")
+  fi
+done
+
+((${#built[@]})) && echo "Built: ${built[*]}"
+((${#skipped[@]})) && echo "Already at the vendored version: ${skipped[*]}"
+if ((${#failed[@]})); then
+  echo "Failed: ${failed[*]}" >&2
+  exit 1
+fi
+exit 0

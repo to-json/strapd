@@ -46,11 +46,10 @@ EOF
   return "$status"
 }
 
-# ufw-docker lives in install/strapd-aur.packages, and nothing builds that
-# list yet; see its header, where phase 8 decides where AUR packages come from.
-# Until then every install runs without the Docker protections, which is worth
-# a line in the install log; it is not worth failing the whole config layer
-# over a `command -v` that cannot succeed.
+# ufw-docker is vendored, so install.sh builds it before this runs and the
+# branch below is normally taken. The check stays because the vendor build is
+# deliberately not fatal: one PKGBUILD that will not build should cost its own
+# package, not the Docker protections and not the whole config layer.
 if strapd-cmd-present ufw-docker; then
   install_ufw_docker_rules
 else

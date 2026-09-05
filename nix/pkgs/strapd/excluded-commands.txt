@@ -8,6 +8,10 @@ strapd-pkg-*
 strapd-reinstall
 strapd-reinstall-pkgs
 
+# Builds the vendored AUR PKGBUILDs with makepkg and installs them with pacman.
+# nixpkgs carries every package arch/vendor/ exists to supply.
+strapd-vendor-*
+
 # The update machinery drives pacman, keyrings, mirrors and firmware. The
 # whole family goes, including its stay-awake/time helpers: nothing outside
 # the family references them.
